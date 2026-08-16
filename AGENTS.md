@@ -4,10 +4,9 @@
 
 - src/SmartApp.Telemetry.Core: domain entities, contracts, validation, fingerprinting, and sanitization rules.
 - src/SmartApp.Telemetry.Infrastructure: EF Core TelemetryDbContext, PostgreSQL mappings, ingestion/dashboard services, migrations, and maintenance jobs.
-- src/SmartApp.Telemetry.Api: ASP.NET Core ingestion and dashboard endpoints, health checks, rate limiting, and Serilog configuration.
-- src/SmartApp.Telemetry.Dashboard: small static dashboard hosted by ASP.NET Core.
+- src/SmartApp.Telemetry.Web: combined ASP.NET Core API and interactive Blazor Web App with Razor pages, shared components, API client, health checks, rate limiting, and Serilog configuration.
 - clients/SmartApp.Telemetry.Client: standalone .NET 10 NuGet SDK for WPF, WinForms, and other applications.
-- tests/SmartApp.Telemetry.Api.Tests and tests/SmartApp.Telemetry.Client.Tests: xUnit tests.
+- tests/SmartApp.Telemetry.Web.Tests and tests/SmartApp.Telemetry.Client.Tests: xUnit tests.
 - nginx/, docker-compose.yml, Dockerfile.*, and azure-pipelines.yml: deployment and packaging assets.
 
 Keep shared behavior in the appropriate project; do not duplicate telemetry logic in consuming applications.
@@ -18,8 +17,7 @@ Keep shared behavior in the appropriate project; do not duplicate telemetry logi
 dotnet restore Telemetry.sln
 dotnet build Telemetry.sln --configuration Release
 dotnet test Telemetry.sln --configuration Release --no-build --no-restore
-dotnet run --project src/SmartApp.Telemetry.Api
-dotnet run --project src/SmartApp.Telemetry.Dashboard
+dotnet run --project src/SmartApp.Telemetry.Web
 docker compose up --build
 ~~~
 
@@ -39,4 +37,4 @@ Never commit connection strings, admin keys, tokens, or customer data. Use envir
 
 ## Commits & Pull Requests
 
-No Git history is present in this checkout, so no existing commit convention can be inferred. Use concise imperative subjects, for example Add client NuGet packaging. Pull requests should explain the behavior change, list validation commands, mention migrations/configuration changes, and include dashboard screenshots when UI behavior changes.
+Use concise imperative commit subjects, for example Add client NuGet packaging or Convert dashboard to Blazor. Pull requests should explain the behavior change, list validation commands, mention migrations/configuration changes, and include dashboard screenshots when UI behavior changes.

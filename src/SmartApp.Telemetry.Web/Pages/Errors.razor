@@ -1,0 +1,307 @@
+@page "/errors"
+@using Microsoft.AspNetCore.Components
+@inject TelemetryApiClient Api
+@inject DashboardState State
+
+<PageTitle>Errors · SmartApp Telemetry</PageTitle>
+
+<section class="view active">
+    <div class="view-head">
+        <div>
+            <div class="eyebrow">03 / triage</div>
+            <h2>Error groups</h2>
+        </div>
+        <div class="view-kicker">click a group for occurrences</div>
+    </div>
+
+    <EditForm Model="@Filters" OnValidSubmit="Apply">
+        <div class="filters">
+            <div class="field">
+                <label for="errorApplication">Application</label>
+                <InputSelect id="errorApplication" @bind-Value="Filters.Application">
+                    <option value="">All applications</option>
+                    @foreach (var app in State.Applications)
+                    {
+                        <option value="@app.Slug">@app.Name</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="field">
+                <label for="errorStatus">Status</label>
+                <InputSelect id="errorStatus" @bind-Value="Filters.Status">
+                    <option value="">Any status</option>
+                    <option value="open">Open</option>
+                    <option value="regressed">Regressed</option>
+                    <option value="resolved">Resolved</option>
+                </InputSelect>
+            </div>
+            <div class="field">
+                <label for="errorSearch">Search</label>
+                <InputText id="errorSearch" @bind-Value="Filters.Search" placeholder="title or exception" />
+            </div>
+            <div class="field">
+                <label for="errorVersion">Version</label>
+                <InputText id="errorVersion" @bind-Value="Filters.Version" placeholder="e.g. 4.8.16" />
+            </div>
+            <div class="field">
+                <label for="errorFrom">Seen from</label>
+                <InputText id="errorFrom" type="date" @bind-Value="Filters.From" />
+            </div>
+            <div class="field">
+                <label for="errorTo">Seen to</label>
+                <InputText id="errorTo" type="date" @bind-Value="Filters.To" />
+            </div>
+            <div class="filter-actions">
+                <button class="button" type="submit">Apply filters</button>
+                <button class="button ghost" type="button" @onclick="Reset">Reset</button>
+            </div>
+        </div>
+    </EditForm>
+
+    @if (loading)
+    {
+        <div class="panel loading-state">Reading error groups…</div>
+    }
+    else if (error is not null)
+    {
+        <div class="error-message">@error</div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            @if (resultPage?.Items.Count is not > 0)
+            {
+                <div class="empty">No error groups match these filters.</div>
+            }
+            else
+            {
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Application</th>
+                            <th>Error group</th>
+                            <th>Occurrences</th>
+                            <th>Affected</th>
+                            <th>First seen</th>
+                            <th>Last seen</th>
+                            <th>Versions</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                @foreach (var item in resultPage.Items)
+                        {
+                            <tr class="clickable" @onclick="() => OpenError(item.ApplicationSlug, item.Id)">
+                                <td><strong>@item.Application</strong><div class="muted mono">@item.ApplicationSlug</div></td>
+                                <td><strong>@item.Title</strong><div class="muted mono">@item.ExceptionType</div></td>
+                                <td>@item.Occurrences.ToString("N0")</td>
+                                <td>@item.AffectedInstallations.ToString("N0")</td>
+                                <td>@FormatShort(item.FirstSeenAt)</td>
+                                <td>@Format(item.LastSeenAt)</td>
+                                <td class="mono">@(item.FirstSeenVersion ?? "—") → @(item.LastSeenVersion ?? "—")</td>
+                                <td><StatusPill Status="@item.Status" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+
+        @if (resultPage is not null)
+        {
+            <Pager Total="@resultPage.Total" Page="@resultPage.Page" PageSize="@resultPage.PageSize" PageChanged="GoToPage" />
+        }
+    }
+</section>
+
+@if (showDetails && selectedError is not null)
+{
+    <div class="modal-backdrop" @onclick="CloseDetails">
+        <section class="modal" role="dialog" aria-modal="true" aria-labelledby="error-title" @onclick:stopPropagation="true">
+            <div class="dialog-top">
+                <div>
+                    <div class="eyebrow">Error group / detail</div>
+                    <h2 id="error-title">@selectedError.Title</h2>
+                    <div class="muted mono">@selectedError.ExceptionType</div>
+                </div>
+                <button class="icon-button" @onclick="CloseDetails" aria-label="Close">×</button>
+            </div>
+
+            <div class="detail-grid">
+                <div class="detail-box"><small>Status</small><strong>@SelectedStatus</strong></div>
+                <div class="detail-box"><small>Occurrences</small><strong>@selectedError.Occurrences.ToString("N0")</strong></div>
+                <div class="detail-box"><small>Affected installations</small><strong>@selectedError.AffectedInstallations.ToString("N0")</strong></div>
+                <div class="detail-box"><small>First seen</small><strong>@Format(selectedError.FirstSeenAt)</strong></div>
+                <div class="detail-box"><small>Last seen</small><strong>@Format(selectedError.LastSeenAt)</strong></div>
+                <div class="detail-box"><small>Resolved in</small><strong>@(selectedError.ResolvedInVersion ?? "—")</strong></div>
+            </div>
+
+            <div class="panel-head">
+                <h3>Recent occurrences</h3>
+                <small>@selectedError.RecentOccurrences.Count shown</small>
+            </div>
+            @if (selectedError.RecentOccurrences.Count == 0)
+            {
+                <div class="empty">No occurrence details available.</div>
+            }
+            else
+            {
+                <div class="occurrences">
+                    @foreach (var occurrence in selectedError.RecentOccurrences)
+                    {
+                        <div class="occurrence">
+                            <div class="occurrence-head">
+                                <span>@(occurrence.AppVersion ?? "unknown version") / @occurrence.InstallationId</span>
+                                <span>@Format(occurrence.OccurredAt)</span>
+                            </div>
+                            <p>@(string.IsNullOrWhiteSpace(occurrence.Message) ? occurrence.StackTrace : occurrence.Message)</p>
+                            @if (!string.IsNullOrWhiteSpace(occurrence.StackTrace) && occurrence.StackTrace != occurrence.Message)
+                            {
+                                <pre>@occurrence.StackTrace</pre>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+
+            @if (!selectedError.IsResolved || selectedError.IsRegressed)
+            {
+                <div class="resolve">
+                    <div class="field">
+                        <label for="resolveVersion">Resolve in version</label>
+                        <InputText id="resolveVersion" @bind-Value="resolveVersion" placeholder="e.g. 4.8.17" />
+                    </div>
+                    <button class="button" type="button" @onclick="Resolve">Mark resolved</button>
+                </div>
+            }
+        </section>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "application")]
+    public string? Application { get; set; }
+
+    [SupplyParameterFromQuery(Name = "error")]
+    public Guid? Error { get; set; }
+
+    private readonly ErrorFilters Filters = new();
+    private DashboardErrorPage? resultPage;
+    private ErrorDetails? selectedError;
+    private string? selectedSlug;
+    private string? resolveVersion;
+    private bool showDetails;
+    private bool loading = true;
+    private bool queryErrorOpened;
+    private string? error;
+
+    private string SelectedStatus => selectedError is null
+        ? "Unknown"
+        : selectedError.IsRegressed
+            ? "Regressed"
+            : selectedError.IsResolved
+                ? "Resolved"
+                : "Open";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        State.Scope = Application ?? string.Empty;
+        Filters.Application = Application ?? State.Scope;
+        State.SetPage(
+            "Error groups",
+            "Filter the signal, inspect occurrences, and close the loop on resolved exceptions.");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        error = null;
+        try
+        {
+            resultPage = await Api.GetErrorsAsync(Filters, resultPage?.Page ?? 1);
+            State.MarkApiSuccess();
+
+            if (!queryErrorOpened && Error.HasValue && !string.IsNullOrWhiteSpace(Filters.Application))
+            {
+                queryErrorOpened = true;
+                var match = resultPage.Items.FirstOrDefault(item => item.Id == Error.Value);
+                if (match is not null)
+                    await OpenError(match.ApplicationSlug, match.Id);
+            }
+        }
+        catch (Exception exception)
+        {
+            error = exception.Message;
+            State.MarkApiFailure(exception);
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task Apply()
+    {
+        resultPage = null;
+        await LoadAsync();
+    }
+
+    private async Task Reset()
+    {
+        Filters.Application = string.Empty;
+        Filters.Status = string.Empty;
+        Filters.Search = string.Empty;
+        Filters.Version = string.Empty;
+        Filters.From = string.Empty;
+        Filters.To = string.Empty;
+        resultPage = null;
+        await LoadAsync();
+    }
+
+    private async Task GoToPage(int target)
+    {
+        if (target < 1 || resultPage is null || target > Math.Ceiling(resultPage.Total / (double)resultPage.PageSize))
+            return;
+
+        resultPage = await Api.GetErrorsAsync(Filters, target);
+    }
+
+    private async Task OpenError(string slug, Guid id)
+    {
+        selectedSlug = slug;
+        selectedError = await Api.GetErrorAsync(slug, id);
+        resolveVersion = selectedError?.ResolvedInVersion;
+        showDetails = selectedError is not null;
+    }
+
+    private void CloseDetails()
+    {
+        showDetails = false;
+        selectedError = null;
+    }
+
+    private async Task Resolve()
+    {
+        if (selectedError is null || selectedSlug is null || string.IsNullOrWhiteSpace(resolveVersion))
+        {
+            error = "Enter the version that resolved this group.";
+            return;
+        }
+
+        try
+        {
+            await Api.ResolveErrorAsync(selectedError.Id, resolveVersion.Trim());
+            selectedError = await Api.GetErrorAsync(selectedSlug, selectedError.Id);
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            error = exception.Message;
+        }
+    }
+
+    private static string Format(DateTime value) => value.ToLocalTime().ToString("MMM d, yyyy HH:mm");
+    private static string FormatShort(DateTime value) => value.ToLocalTime().ToString("MMM d");
+}
+

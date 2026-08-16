@@ -1,0 +1,11 @@
+<div class="metric @Tone">
+    <small>@Label</small>
+    <strong>@Value.ToString("N0")</strong>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter] public long Value { get; set; }
+    [Parameter] public string Tone { get; set; } = string.Empty;
+}
+

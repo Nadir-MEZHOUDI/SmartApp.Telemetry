@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SmartApp.Telemetry.Core;
 using SmartApp.Telemetry.Infrastructure;
 
-namespace SmartApp.Telemetry.Api;
+namespace SmartApp.Telemetry.Web;
 
 public sealed class TelemetryMaintenanceService(
     IServiceScopeFactory scopeFactory,
@@ -88,3 +88,4 @@ public sealed class TelemetryMaintenanceService(
         await db.SaveChangesAsync(cancellationToken);
     }
 }
+

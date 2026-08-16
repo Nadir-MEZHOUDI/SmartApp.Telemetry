@@ -4,7 +4,7 @@
 
 ## ما تم تنفيذه
 
-- Modular monolith واحد: API + Infrastructure + Core.
+- Modular monolith واحد: Web + Infrastructure + Core.
 - PostgreSQL وEF Core مع migration أولية.
 - Multi-app عبر Application وApplicationId.
 - Anonymous installation ID محفوظ محليًا في %LocalAppData%.
@@ -12,20 +12,19 @@
 - إعداد الحزمة موجود في clients/SmartApp.Telemetry.Client، وAzure DevOps pipeline في azure-pipelines.yml.
 - Queue داخل الذاكرة، batching حتى 50 حدثًا، retry محدود، وoffline JSONL queue بحد أقصى.
 - أحداث الاستخدام، feature tracking، استثناءات، fingerprinting، sanitization.
-- Dashboard بسيط لعرض التطبيقات، installations، activity، versions، features والأخطاء.
+- Blazor Dashboard تفاعلي لعرض التطبيقات، installations، activity، versions، features والأخطاء.
 - DAU/WAU/MAU مبنية على Installation.LastSeenAt.
-- Rate limiting، body limit، allowed event names، health checks، CORS، وCloudflare country header.
+- Rate limiting، body limit، allowed event names، health checks، وCloudflare country header.
 - Background maintenance للـ daily aggregates وretention.
-- Docker Compose لـ PostgreSQL وAPI وDashboard.
+- Docker Compose لـ PostgreSQL وWeb.
 
 ## التشغيل المحلي
 
-المتطلبات: .NET 10. لتشغيل API محليًا يجب وجود PostgreSQL، ثم:
+المتطلبات: .NET 10. لتشغيل Web محليًا يجب وجود PostgreSQL، ثم:
 
 ~~~powershell
 dotnet restore Telemetry.sln
-dotnet run --project src/SmartApp.Telemetry.Api
-dotnet run --project src/SmartApp.Telemetry.Dashboard
+dotnet run --project src/SmartApp.Telemetry.Web
 ~~~
 
 أو شغّل كل شيء:
@@ -44,17 +43,16 @@ dotnet pack clients/SmartApp.Telemetry.Client/SmartApp.Telemetry.Client.csproj -
 
 بعدها:
 
-- Dashboard: http://localhost:8080
-- API: http://localhost:5000
-- Health: http://localhost:5000/health
-- OpenAPI: http://localhost:5000/openapi/v1.json
+- Web Dashboard + API: http://localhost:8080
+- API health: http://localhost:8080/health
+- OpenAPI: http://localhost:8080/openapi/v1.json
 
 غيّر كلمات مرور PostgreSQL وDashboard__AdminKey قبل أي نشر عام.
 
 ## تسجيل تطبيق جديد
 
 ~~~powershell
-curl -X POST http://localhost:5000/api/v1/applications -H "Content-Type: application/json" -d '{"name":"SmartPharm","slug":"smartpharm"}'
+curl -X POST http://localhost:8080/api/v1/applications -H "Content-Type: application/json" -d '{"name":"SmartPharm","slug":"smartpharm"}'
 ~~~
 
 ## دمج تطبيق WPF/WinForms

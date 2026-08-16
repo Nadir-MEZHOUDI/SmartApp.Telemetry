@@ -13,31 +13,19 @@ services:
       timeout: 5s
       retries: 10
 
-  api:
+  web:
     build:
       context: .
-      dockerfile: Dockerfile.api
+      dockerfile: Dockerfile.web
     environment:
       ConnectionStrings__Telemetry: Host=postgres;Port=5432;Database=telemetry;Username=telemetry;Password=change-this-password
       Dashboard__AdminKey: change-this-admin-key
-      Dashboard__AllowedOrigin: http://localhost:8080
-    ports:
-      - "5000:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  dashboard:
-    build:
-      context: .
-      dockerfile: Dockerfile.dashboard
-    environment:
-      TelemetryApi__BaseUrl: http://localhost:5000
-      TelemetryApi__AdminKey: change-this-admin-key
+      TelemetryApi__BaseUrl: http://localhost:8080
     ports:
       - "8080:8080"
     depends_on:
-      - api
+      postgres:
+        condition: service_healthy
 
 volumes:
   telemetry-postgres:

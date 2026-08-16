@@ -4,7 +4,7 @@
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\SmartApp.Telemetry.Api\SmartApp.Telemetry.Api.csproj" />
+    <ProjectReference Include="..\..\src\SmartApp.Telemetry.Web\SmartApp.Telemetry.Web.csproj" />
     <ProjectReference Include="..\..\src\SmartApp.Telemetry.Infrastructure\SmartApp.Telemetry.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\SmartApp.Telemetry.Core\SmartApp.Telemetry.Core.csproj" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.11" />

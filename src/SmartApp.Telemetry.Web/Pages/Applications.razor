@@ -1,0 +1,218 @@
+@page "/applications"
+@page "/applications/{Slug}"
+@inject TelemetryApiClient Api
+@inject DashboardState State
+@inject NavigationManager Navigation
+
+<PageTitle>Applications · SmartApp Telemetry</PageTitle>
+
+<section class="view active">
+    <div class="view-head">
+        <div>
+            <div class="eyebrow">02 / portfolio</div>
+            <h2>Applications</h2>
+        </div>
+        <div class="view-kicker">choose a row for its profile</div>
+    </div>
+
+    @if (loading)
+    {
+        <div class="panel loading-state">Loading application profiles…</div>
+    }
+    else if (error is not null)
+    {
+        <div class="error-message">@error</div>
+    }
+    else if (Slug is null && overview is not null)
+    {
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Application</th>
+                        <th>Slug</th>
+                        <th>Installations</th>
+                        <th>Today</th>
+                        <th>7 days</th>
+                        <th>30 days</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var app in overview.Applications)
+                    {
+                        <tr class="clickable" @onclick="() => Open(app.Slug)">
+                            <td><strong>@app.Name</strong></td>
+                            <td class="mono">@app.Slug</td>
+                            <td>@app.Installations.ToString("N0")</td>
+                            <td>@app.ActiveToday.ToString("N0")</td>
+                            <td>@app.Active7Days.ToString("N0")</td>
+                            <td>@app.Active30Days.ToString("N0")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else if (profile is not null)
+    {
+        var summary = profile.Summary;
+        <div class="metric-grid">
+            <MetricCard Label="Installations" Value="@summary.Installations" Tone="accent" />
+            <MetricCard Label="Active today" Value="@summary.ActiveToday" Tone="blue" />
+            <MetricCard Label="Active / 7 days" Value="@summary.Active7Days" Tone="green" />
+            <MetricCard Label="Active / 30 days" Value="@summary.Active30Days" />
+        </div>
+
+        <div class="split">
+            <div class="panel">
+                <div class="panel-head">
+                    <h3>@summary.Name</h3>
+                    <small class="mono">@summary.Slug</small>
+                </div>
+                <DistributionBars Items="@profile.Versions" EmptyMessage="No version data" />
+            </div>
+            <div class="panel">
+                <div class="panel-head">
+                    <h3>Activity / 30 days</h3>
+                    <small>active installations</small>
+                </div>
+                <ActivityChart Points="@profile.Activity" />
+            </div>
+        </div>
+
+        <div class="split">
+            <div class="panel">
+                <div class="panel-head"><h3>Operating systems</h3><small>reported by clients</small></div>
+                <DistributionBars Items="@profile.OperatingSystems" EmptyMessage="No platform data" />
+            </div>
+            <div class="panel">
+                <div class="panel-head"><h3>Architectures</h3><small>reported by clients</small></div>
+                <DistributionBars Items="@profile.Architectures" EmptyMessage="No architecture data" />
+            </div>
+        </div>
+
+        <div class="split">
+            <div class="panel">
+                <div class="panel-head"><h3>Countries</h3><small>installation origin</small></div>
+                <DistributionBars Items="@profile.Countries" EmptyMessage="No country data" />
+            </div>
+            <div class="panel">
+                <div class="panel-head"><h3>Languages</h3><small>client locale</small></div>
+                <DistributionBars Items="@profile.Languages" EmptyMessage="No language data" />
+            </div>
+        </div>
+
+        <div class="split">
+            <div class="panel">
+                <div class="panel-head"><h3>Most used features</h3><small>event properties</small></div>
+                <DistributionBars Items="@profile.Features" EmptyMessage="No feature events yet" />
+            </div>
+            <div class="panel">
+                <div class="panel-head"><h3>Error signal</h3><small>recent groups</small></div>
+                <div class="signal-notes">
+                    <div><span>Groups</span><strong>@profile.RecentErrors.Count</strong></div>
+                    <div><span>Open</span><strong>@profile.RecentErrors.Count(item => item.Status is "Open" or "Regressed")</strong></div>
+                    <div><span>Latest</span><strong>@(profile.RecentErrors.Count == 0 ? "No errors" : Format(profile.RecentErrors.Max(item => item.LastSeenAt)))</strong></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="view-head compact-head">
+            <div><div class="eyebrow">Recent signal</div><h3>Latest error groups</h3></div>
+            <button class="button ghost" @onclick="OpenErrors">Open error view</button>
+        </div>
+        <div class="table-wrap">
+            @if (profile.RecentErrors.Count == 0)
+            {
+                <div class="empty">No error groups match this application.</div>
+            }
+            else
+            {
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Title</th>
+                            <th>Occurrences</th>
+                            <th>Affected</th>
+                            <th>First seen</th>
+                            <th>Last seen</th>
+                            <th>Versions</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in profile.RecentErrors)
+                        {
+                            <tr class="clickable" @onclick="() => OpenError(item.Id)">
+                                <td><strong>@item.Title</strong><div class="muted mono">@item.ExceptionType</div></td>
+                                <td>@item.Occurrences.ToString("N0")</td>
+                                <td>@item.AffectedInstallations.ToString("N0")</td>
+                                <td>@FormatShort(item.FirstSeenAt)</td>
+                                <td>@Format(item.LastSeenAt)</td>
+                                <td class="mono">@(item.FirstSeenVersion ?? "—") → @(item.LastSeenVersion ?? "—")</td>
+                                <td><StatusPill Status="@item.Status" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter] public string? Slug { get; set; }
+
+    private DashboardOverview? overview;
+    private DashboardApplication? profile;
+    private bool loading = true;
+    private string? error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        State.Scope = Slug ?? string.Empty;
+        State.SetPage(
+            Slug is null ? "Application profiles" : "Application / profile",
+            Slug is null
+                ? "Compare reach, versions, platforms, and the error signal behind each client."
+                : "One application, its footprint, and the signal that needs attention.");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        error = null;
+        overview = null;
+        profile = null;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(Slug))
+                overview = await Api.GetOverviewAsync();
+            else
+                profile = await Api.GetApplicationAsync(Slug);
+
+            if (Slug is not null && profile is null)
+                error = "Application not found.";
+            else
+                State.MarkApiSuccess();
+        }
+        catch (Exception exception)
+        {
+            error = exception.Message;
+            State.MarkApiFailure(exception);
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void Open(string slug) => Navigation.NavigateTo($"/applications/{Uri.EscapeDataString(slug)}");
+    private void OpenErrors() => Navigation.NavigateTo($"/errors?application={Uri.EscapeDataString(Slug ?? string.Empty)}");
+    private void OpenError(Guid id) => Navigation.NavigateTo($"/errors?application={Uri.EscapeDataString(Slug ?? string.Empty)}&error={id}");
+
+    private static string Format(DateTime value) => value.ToLocalTime().ToString("MMM d, yyyy HH:mm");
+    private static string FormatShort(DateTime value) => value.ToLocalTime().ToString("MMM d");
+}
+

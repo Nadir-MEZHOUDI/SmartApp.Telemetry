@@ -1,0 +1,187 @@
+@page "/installations"
+@inject TelemetryApiClient Api
+@inject DashboardState State
+
+<PageTitle>Installations · SmartApp Telemetry</PageTitle>
+
+<section class="view active">
+    <div class="view-head">
+        <div>
+            <div class="eyebrow">04 / reach</div>
+            <h2>Installations</h2>
+        </div>
+        <div class="view-kicker">latest client heartbeat</div>
+    </div>
+
+    <EditForm Model="@Filters" OnValidSubmit="Apply">
+        <div class="filters">
+            <div class="field">
+                <label for="installationApplication">Application</label>
+                <InputSelect id="installationApplication" @bind-Value="Filters.Application">
+                    <option value="">All applications</option>
+                    @foreach (var app in State.Applications)
+                    {
+                        <option value="@app.Slug">@app.Name</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="field">
+                <label for="installationVersion">Version</label>
+                <InputText id="installationVersion" @bind-Value="Filters.Version" placeholder="e.g. 4.8.16" />
+            </div>
+            <div class="field">
+                <label for="installationCountry">Country</label>
+                <InputText id="installationCountry" @bind-Value="Filters.Country" placeholder="DZ" />
+            </div>
+            <div class="field">
+                <label for="installationOs">Operating system</label>
+                <InputText id="installationOs" @bind-Value="Filters.OperatingSystem" placeholder="Windows" />
+            </div>
+            <div class="field">
+                <label for="installationArchitecture">Architecture</label>
+                <InputText id="installationArchitecture" @bind-Value="Filters.Architecture" placeholder="x64" />
+            </div>
+            <div class="field">
+                <label for="installationLanguage">Language</label>
+                <InputText id="installationLanguage" @bind-Value="Filters.Language" placeholder="fr-DZ" />
+            </div>
+            <div class="field">
+                <label for="installationActive">Active within</label>
+                <InputSelect id="installationActive" @bind-Value="Filters.ActiveWithinDays">
+                    <option value="0">Any time</option>
+                    <option value="1">24 hours</option>
+                    <option value="7">7 days</option>
+                    <option value="30">30 days</option>
+                    <option value="90">90 days</option>
+                </InputSelect>
+            </div>
+            <div class="filter-actions">
+                <button class="button" type="submit">Apply filters</button>
+                <button class="button ghost" type="button" @onclick="Reset">Reset</button>
+            </div>
+        </div>
+    </EditForm>
+
+    @if (loading)
+    {
+        <div class="panel loading-state">Reading installations…</div>
+    }
+    else if (error is not null)
+    {
+        <div class="error-message">@error</div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            @if (resultPage?.Items.Count is not > 0)
+            {
+                <div class="empty">No installations match these filters.</div>
+            }
+            else
+            {
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Application</th>
+                            <th>Installation</th>
+                            <th>Version</th>
+                            <th>Environment</th>
+                            <th>Language</th>
+                            <th>First seen</th>
+                            <th>Last heartbeat</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                @foreach (var item in resultPage.Items)
+                        {
+                            <tr>
+                                <td><strong>@item.Application</strong><div class="muted mono">@item.ApplicationSlug</div></td>
+                                <td class="mono">@item.InstallationId</td>
+                                <td>@(item.CurrentVersion ?? "—")</td>
+                                <td>@Environment(item)</td>
+                                <td>@(item.Language ?? "—")</td>
+                                <td>@item.FirstSeenAt.ToLocalTime().ToString("MMM d")</td>
+                                <td>@item.LastSeenAt.ToLocalTime().ToString("MMM d, yyyy HH:mm")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+
+        @if (resultPage is not null)
+        {
+            <Pager Total="@resultPage.Total" Page="@resultPage.Page" PageSize="@resultPage.PageSize" PageChanged="GoToPage" />
+        }
+    }
+</section>
+
+@code {
+    private readonly InstallationFilters Filters = new();
+    private DashboardInstallationPage? resultPage;
+    private bool loading = true;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Filters.Application = State.Scope;
+        State.SetPage(
+            "Installation reach",
+            "See the active client footprint and the environment each installation reports.");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        error = null;
+        try
+        {
+            resultPage = await Api.GetInstallationsAsync(Filters, resultPage?.Page ?? 1);
+            State.MarkApiSuccess();
+        }
+        catch (Exception exception)
+        {
+            error = exception.Message;
+            State.MarkApiFailure(exception);
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task Apply()
+    {
+        resultPage = null;
+        await LoadAsync();
+    }
+
+    private async Task Reset()
+    {
+        Filters.Application = string.Empty;
+        Filters.Version = string.Empty;
+        Filters.Country = string.Empty;
+        Filters.OperatingSystem = string.Empty;
+        Filters.Architecture = string.Empty;
+        Filters.Language = string.Empty;
+        Filters.ActiveWithinDays = 0;
+        resultPage = null;
+        await LoadAsync();
+    }
+
+    private async Task GoToPage(int target)
+    {
+        if (target < 1 || resultPage is null || target > Math.Ceiling(resultPage.Total / (double)resultPage.PageSize))
+            return;
+
+        resultPage = await Api.GetInstallationsAsync(Filters, target);
+    }
+
+    private static string Environment(DashboardInstallationRow item) =>
+        string.Join(" / ", new[] { item.OperatingSystem, item.Architecture, item.CountryCode }
+            .Where(value => !string.IsNullOrWhiteSpace(value))) is { Length: > 0 } value
+            ? value
+            : "—";
+}
+

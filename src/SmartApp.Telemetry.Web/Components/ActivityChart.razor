@@ -1,0 +1,23 @@
+@if (Points is null || Points.Count == 0)
+{
+    <div class="empty">No activity recorded yet.</div>
+}
+else
+{
+    var max = Math.Max(1, Points.Max(point => point.Value));
+    <div class="activity-chart">
+        @foreach (var point in Points)
+        {
+            var height = Math.Max(4, point.Value / (double)max * 100);
+            <div class="activity-column" title="@($"{point.Date}: {point.Value:N0}")">
+                <i style="height:@($"{height:0.##}%")"></i>
+                <small>@point.Date</small>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public IReadOnlyList<ChartPoint>? Points { get; set; }
+}
+

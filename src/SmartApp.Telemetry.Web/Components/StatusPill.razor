@@ -1,0 +1,8 @@
+<span class="status-pill @CssClass">@Status</span>
+
+@code {
+    [Parameter, EditorRequired] public string Status { get; set; } = "Unknown";
+
+    private string CssClass => Status.ToLowerInvariant();
+}
+

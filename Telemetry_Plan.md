@@ -77,7 +77,7 @@
               telemetry.example.com
                          │
                          ▼
-               ASP.NET Core API
+              SmartApp.Telemetry.Web
                          │
             ┌────────────┴────────────┐
             │                         │
@@ -85,25 +85,24 @@
        PostgreSQL                Background Jobs
             │
             ▼
-     Telemetry Dashboard
+     Blazor Dashboard + API
 ```
 
-يجب إنشاء ثلاثة Projects رئيسية:
+يجب إنشاء Projects رئيسية:
 
 ```text
 Telemetry.sln
 
 src/
-    SmartApp.Telemetry.Api
+    SmartApp.Telemetry.Web
     SmartApp.Telemetry.Core
     SmartApp.Telemetry.Infrastructure
-    SmartApp.Telemetry.Dashboard
 
 clients/
     SmartApp.Telemetry.Client
 
 tests/
-    SmartApp.Telemetry.Api.Tests
+    SmartApp.Telemetry.Web.Tests
     SmartApp.Telemetry.Client.Tests
 ```
 

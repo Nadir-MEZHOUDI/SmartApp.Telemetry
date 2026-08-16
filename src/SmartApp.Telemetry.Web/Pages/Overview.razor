@@ -1,0 +1,106 @@
+@page "/"
+@inject TelemetryApiClient Api
+@inject DashboardState State
+
+<PageTitle>Overview · SmartApp Telemetry</PageTitle>
+
+<section class="view active">
+    <div class="view-head">
+        <div>
+            <div class="eyebrow">01 / pulse</div>
+            <h2>Overview</h2>
+        </div>
+        <div class="view-kicker">updated @DateTime.Now.ToString("t")</div>
+    </div>
+
+    @if (loading)
+    {
+        <div class="panel loading-state">Reading the latest signal…</div>
+    }
+    else if (error is not null)
+    {
+        <div class="error-message">@error</div>
+    }
+    else if (overview is not null)
+    {
+        <div class="metric-grid">
+            <MetricCard Label="Total installations" Value="@overview.TotalInstallations" Tone="accent" />
+            <MetricCard Label="Active today" Value="@overview.ActiveToday" Tone="blue" />
+            <MetricCard Label="Active / 7 days" Value="@overview.Active7Days" Tone="green" />
+            <MetricCard Label="Active / 30 days" Value="@overview.Active30Days" />
+            <MetricCard Label="Events today" Value="@overview.EventsToday" Tone="blue" />
+            <MetricCard Label="Errors today" Value="@overview.ErrorsToday" Tone="accent" />
+            <MetricCard Label="Crash-free installations" Value="@overview.CrashFreeInstallations" Tone="green" />
+        </div>
+
+        <div class="split">
+            <div class="panel">
+                <div class="panel-head">
+                    <h3>Application footprint</h3>
+                    <small>active installations / 30 days</small>
+                </div>
+                <DistributionBars Items="ApplicationFootprint" EmptyMessage="No applications registered" />
+            </div>
+            <div class="panel">
+                <div class="panel-head">
+                    <h3>Signal notes</h3>
+                    <small>at a glance</small>
+                </div>
+                <div class="signal-notes">
+                    <div><span>Coverage</span><strong>@Coverage</strong></div>
+                    <div><span>Errors</span><strong>@ErrorNote</strong></div>
+                    <div><span>Inventory</span><strong>@overview.Applications.Count application@(overview.Applications.Count == 1 ? "" : "s")</strong></div>
+                </div>
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    private DashboardOverview? overview;
+    private bool loading = true;
+    private string? error;
+
+    private IReadOnlyList<CountItem> ApplicationFootprint =>
+        overview?.Applications
+            .Select(app => new CountItem(app.Name, app.Active30Days))
+            .ToList() ?? [];
+
+    private string Coverage =>
+        overview is null || overview.TotalInstallations == 0
+            ? "No installation data"
+            : $"{Math.Round(overview.Active30Days / (double)overview.TotalInstallations * 100)}% active in 30 days";
+
+    private string ErrorNote => overview?.ErrorsToday > 0
+        ? $"{overview.ErrorsToday:N0} errors need a look"
+        : "No errors reported today";
+
+    protected override async Task OnInitializedAsync()
+    {
+        State.SetPage(
+            "Operational overview",
+            "A compact read on adoption, activity, and the health of every SmartApp client.");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        error = null;
+        try
+        {
+            overview = await Api.GetOverviewAsync();
+            State.MarkApiSuccess();
+        }
+        catch (Exception exception)
+        {
+            error = exception.Message;
+            State.MarkApiFailure(exception);
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+}
+

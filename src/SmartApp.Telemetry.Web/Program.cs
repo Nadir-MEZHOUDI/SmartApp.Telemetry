@@ -5,7 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using Serilog;
 using SmartApp.Telemetry.Core;
 using SmartApp.Telemetry.Infrastructure;
-using SmartApp.Telemetry.Api;
+using SmartApp.Telemetry.Web;
+using SmartApp.Telemetry.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,7 +25,8 @@ builder.Services.Configure<JsonOptions>(options =>
 var useInMemory = builder.Configuration.GetValue<bool>("UseInMemoryDatabase");
 var connectionString = builder.Configuration.GetConnectionString("Telemetry")
     ?? "Host=localhost;Database=Telemetry;Username=postgres;Password=postgres";
-var dashboardOrigin = builder.Configuration["Dashboard:AllowedOrigin"] ?? "http://localhost:8080";
+var telemetryApiBaseUrl = builder.Configuration["TelemetryApi:BaseUrl"] ?? "http://localhost:5000";
+var adminKey = builder.Configuration["Dashboard:AdminKey"] ?? builder.Configuration["TelemetryApi:AdminKey"] ?? string.Empty;
 
 if (useInMemory)
     builder.Services.AddDbContext<TelemetryDbContext>(options => options.UseInMemoryDatabase("telemetry-tests"));
@@ -34,11 +36,15 @@ else
 builder.Services.AddScoped<TelemetryIngestionService>();
 builder.Services.AddScoped<TelemetryDashboardService>();
 builder.Services.AddHostedService<TelemetryMaintenanceService>();
-builder.Services.AddCors(options => options.AddPolicy("dashboard", policy =>
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents();
+builder.Services.AddHttpClient<TelemetryApiClient>(client =>
 {
-    if (dashboardOrigin == "*") policy.AllowAnyOrigin().AllowAnyHeader();
-    else policy.WithOrigins(dashboardOrigin).AllowAnyHeader();
-}));
+    client.BaseAddress = new Uri(telemetryApiBaseUrl.TrimEnd('/') + "/");
+    if (!string.IsNullOrWhiteSpace(adminKey))
+        client.DefaultRequestHeaders.Add("X-Admin-Key", adminKey);
+});
+builder.Services.AddScoped<DashboardState>();
 builder.Services.AddHealthChecks().AddDbContextCheck<TelemetryDbContext>();
 builder.Services.AddOpenApi();
 builder.Services.AddRateLimiter(options =>
@@ -54,6 +60,9 @@ builder.Services.AddRateLimiter(options =>
 
 var app = builder.Build();
 
+if (!app.Environment.IsDevelopment())
+    app.UseExceptionHandler("/error");
+
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<TelemetryDbContext>();
@@ -62,10 +71,10 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseSerilogRequestLogging();
-app.UseCors("dashboard");
+app.UseStaticFiles();
+app.UseAntiforgery();
 app.UseRateLimiter();
 
-var adminKey = app.Configuration["Dashboard:AdminKey"];
 app.Use(async (context, next) =>
 {
     if (context.Request.Path.StartsWithSegments("/api/v1/dashboard") &&
@@ -83,7 +92,7 @@ app.MapOpenApi();
 app.MapHealthChecks("/health");
 app.MapHealthChecks("/health/ready");
 
-app.MapGet("/", () => Results.Ok(new
+app.MapGet("/api", () => Results.Ok(new
 {
     service = "SmartApp Telemetry API",
     status = "ok",
@@ -254,6 +263,9 @@ app.MapPost("/api/v1/dashboard/errors/{errorId:guid}/resolve", async (
         return Results.NotFound();
     }
 });
+
+app.MapRazorComponents<App>()
+    .AddInteractiveServerRenderMode();
 
 app.Run();
 

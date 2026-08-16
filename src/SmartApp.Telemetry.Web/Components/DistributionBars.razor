@@ -1,0 +1,25 @@
+@if (Items is null || Items.Count == 0)
+{
+    <div class="empty">@(EmptyMessage ?? "No data yet")</div>
+}
+else
+{
+    var max = Math.Max(1, Items.Max(item => item.Count));
+    <div class="bars">
+        @foreach (var item in Items.Take(8))
+        {
+            var width = Math.Max(3, item.Count / (double)max * 100);
+            <div class="bar-row">
+                <span class="bar-label" title="@item.Name">@(!string.IsNullOrWhiteSpace(item.Name) ? item.Name : "Unknown")</span>
+                <span class="bar-track"><i class="bar-fill" style="width:@($"{width:0.##}%")"></i></span>
+                <em>@item.Count.ToString("N0")</em>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public IReadOnlyList<CountItem>? Items { get; set; }
+    [Parameter] public string? EmptyMessage { get; set; }
+}
+

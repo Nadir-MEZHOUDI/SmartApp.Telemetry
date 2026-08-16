@@ -1,0 +1,86 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject NavigationManager Navigation
+@inject DashboardState State
+
+<div class="shell">
+    <aside class="rail">
+        <div class="brand">
+            <div class="brand-mark">S</div>
+            <div>
+                <strong>SmartApp</strong>
+                <small>Telemetry / control room</small>
+            </div>
+        </div>
+
+        <div class="rail-label">Views</div>
+        <nav class="nav" aria-label="Dashboard views">
+            <NavLink href="/" Match="NavLinkMatch.All"><b>01</b> Overview</NavLink>
+            <NavLink href="/applications"><b>02</b> Applications</NavLink>
+            <NavLink href="/errors"><b>03</b> Errors</NavLink>
+            <NavLink href="/installations"><b>04</b> Installations</NavLink>
+        </nav>
+
+        <div class="rail-foot">
+            The quiet signal matters.<br />
+            <span>@(State.ApiAvailable ? "API connected / live" : "API needs attention")</span>
+        </div>
+    </aside>
+
+    <main class="content">
+        <header class="topbar">
+            <div>
+                <div class="eyebrow">Telemetry / live workspace</div>
+                <h1>@State.PageTitle</h1>
+                <p class="lede">@State.PageLede</p>
+                <div class="status">
+                    <span class="status-dot @(State.ApiAvailable ? "" : "bad")"></span>
+                    <span>@State.StatusMessage</span>
+                </div>
+            </div>
+            <div class="top-actions">
+                <div>
+                    <label for="scope">Application scope</label>
+                    <select id="scope" value="@State.Scope" @onchange="SelectScope">
+                        <option value="">All applications</option>
+                        @foreach (var app in State.Applications)
+                        {
+                            <option value="@app.Slug">@app.Name</option>
+                        }
+                    </select>
+                </div>
+                <button class="button ghost" @onclick="Refresh">Refresh data</button>
+            </div>
+        </header>
+
+        @Body
+    </main>
+</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        State.Changed += StateChanged;
+        await State.LoadApplicationsAsync();
+    }
+
+    private async Task SelectScope(ChangeEventArgs args)
+    {
+        State.Scope = args.Value?.ToString() ?? string.Empty;
+        Navigation.NavigateTo(string.IsNullOrWhiteSpace(State.Scope)
+            ? "/"
+            : $"/applications/{Uri.EscapeDataString(State.Scope)}");
+        await Task.CompletedTask;
+    }
+
+    private async Task Refresh()
+    {
+        await State.LoadApplicationsAsync();
+        Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+    }
+
+    private void StateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => State.Changed -= StateChanged;
+}
+

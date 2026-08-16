@@ -3,7 +3,7 @@ using SmartApp.Telemetry.Core;
 using SmartApp.Telemetry.Infrastructure;
 using Xunit;
 
-namespace SmartApp.Telemetry.Api.Tests;
+namespace SmartApp.Telemetry.Web.Tests;
 
 public sealed class TelemetryRulesTests
 {
