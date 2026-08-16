@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SmartApp Telemetry</title>
+  <style>
+    :root {
+      --paper:#ebe8e0; --panel:#f8f6f0; --ink:#15171b; --muted:#77736b;
+      --line:#d5d0c5; --rail:#17191d; --coral:#df6043; --blue:#3555d4;
+      --green:#2c765d; --amber:#bf7e21; --shadow:0 18px 45px rgba(42,38,28,.08);
+      font-family: "Segoe UI", Arial, sans-serif; color:var(--ink); background:var(--paper);
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; min-width:320px; }
+    button, input, select { font:inherit; }
+    button, select, input { border:1px solid var(--line); border-radius:3px; }
+    button { cursor:pointer; }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline:3px solid rgba(53,85,212,.28); outline-offset:2px; }
+    .shell { display:grid; grid-template-columns:250px minmax(0,1fr); min-height:100vh; }
+    .rail { background:var(--rail); color:#f5f0e5; padding:28px 20px; display:flex; flex-direction:column; }
+    .brand { display:flex; align-items:flex-start; gap:10px; margin-bottom:46px; }
+    .brand-mark { width:28px; height:28px; display:grid; place-items:center; color:var(--rail); background:var(--coral); font-weight:800; font-family:Georgia,serif; }
+    .brand strong { display:block; font:700 18px/1 Georgia,serif; letter-spacing:-.03em; }
+    .brand small { display:block; color:#9e9b91; font-size:10px; letter-spacing:.14em; text-transform:uppercase; margin-top:5px; }
+    .rail-label { color:#777a7d; font-size:10px; letter-spacing:.18em; text-transform:uppercase; margin:0 0 12px 8px; }
+    .nav { display:grid; gap:5px; }
+    .nav button { display:flex; gap:13px; align-items:center; color:#aaa9a2; background:transparent; border:0; padding:12px 8px; text-align:left; font-size:13px; }
+    .nav button:hover, .nav button.active { color:#fff; background:#25282e; }
+    .nav button.active { box-shadow:inset 3px 0 var(--coral); }
+    .nav b { width:22px; color:var(--coral); font:700 11px/1 ui-monospace,monospace; }
+    .rail-foot { margin-top:auto; border-top:1px solid #34363a; padding-top:18px; color:#8b8b84; font-size:11px; line-height:1.5; }
+    .rail-foot span { color:#d5d0c5; }
+    .content { min-width:0; padding:30px clamp(20px,4vw,64px) 60px; }
+    .topbar { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; border-bottom:1px solid var(--line); padding-bottom:24px; }
+    .eyebrow { color:var(--coral); font:700 10px/1 ui-monospace,monospace; letter-spacing:.18em; text-transform:uppercase; }
+    h1, h2, h3, p { margin-top:0; }
+    h1 { font:400 clamp(34px,5vw,58px)/.98 Georgia,serif; letter-spacing:-.055em; margin:8px 0 11px; }
+    h2 { font:400 28px/1.05 Georgia,serif; letter-spacing:-.04em; margin:0 0 7px; }
+    h3 { font:600 16px/1.1 Georgia,serif; margin:0; }
+    .lede { color:var(--muted); max-width:560px; margin:0; font-size:14px; }
+    .top-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
+    .top-actions label, .field label { display:block; color:var(--muted); font:700 10px/1 ui-monospace,monospace; letter-spacing:.08em; text-transform:uppercase; margin:0 0 6px; }
+    select, input { background:var(--panel); color:var(--ink); padding:9px 10px; min-height:38px; }
+    .top-actions select { min-width:170px; }
+    .button { background:var(--ink); color:#fff; border-color:var(--ink); padding:9px 14px; min-height:38px; }
+    .button:hover { background:var(--coral); border-color:var(--coral); }
+    .button.ghost { background:transparent; color:var(--ink); border-color:var(--line); }
+    .button.ghost:hover { border-color:var(--ink); background:var(--panel); }
+    .status { display:flex; align-items:center; gap:7px; color:var(--muted); font:11px ui-monospace,monospace; margin-top:22px; }
+    .status-dot { width:7px; height:7px; border-radius:50%; background:var(--green); }
+    .status-dot.bad { background:var(--coral); }
+    .view { display:none; animation:rise .28s ease both; }
+    .view.active { display:block; }
+    .view-head { display:flex; justify-content:space-between; align-items:end; gap:20px; margin:35px 0 20px; }
+    .view-kicker { color:var(--muted); font:11px ui-monospace,monospace; }
+    .metric-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+    .metric { background:var(--panel); border:1px solid var(--line); padding:18px; min-height:120px; box-shadow:var(--shadow); }
+    .metric small { color:var(--muted); font:11px ui-monospace,monospace; text-transform:uppercase; letter-spacing:.08em; }
+    .metric strong { display:block; font:400 clamp(30px,4vw,45px)/1 Georgia,serif; margin-top:18px; letter-spacing:-.05em; }
+    .metric.accent { border-top:3px solid var(--coral); }
+    .metric.blue { border-top:3px solid var(--blue); }
+    .metric.green { border-top:3px solid var(--green); }
+    .split { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(260px,.75fr); gap:14px; margin-top:14px; }
+    .panel { background:var(--panel); border:1px solid var(--line); padding:20px; box-shadow:var(--shadow); min-width:0; }
+    .panel-head { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:18px; }
+    .panel-head small { color:var(--muted); font:11px ui-monospace,monospace; }
+    .bars { display:grid; gap:13px; }
+    .bar-row { display:grid; grid-template-columns:130px minmax(40px,1fr) 45px; gap:10px; align-items:center; font-size:12px; }
+    .bar-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); }
+    .bar-track { height:8px; background:#e3dfd5; }
+    .bar-fill { height:100%; min-width:3px; background:var(--blue); }
+    .bar-row:nth-child(2n) .bar-fill { background:var(--coral); }
+    .bar-row em { color:var(--ink); font:11px ui-monospace,monospace; font-style:normal; text-align:right; }
+    .table-wrap { overflow:auto; border:1px solid var(--line); background:var(--panel); box-shadow:var(--shadow); }
+    table { width:100%; border-collapse:collapse; min-width:720px; }
+    th, td { padding:13px 15px; border-bottom:1px solid var(--line); text-align:left; vertical-align:middle; }
+    th { color:var(--muted); background:#f1eee7; font:700 10px ui-monospace,monospace; letter-spacing:.09em; text-transform:uppercase; }
+    td { font-size:12px; }
+    tbody tr:last-child td { border-bottom:0; }
+    tbody tr.clickable { cursor:pointer; }
+    tbody tr.clickable:hover { background:#f0ede5; }
+    .mono { font:11px ui-monospace,monospace; }
+    .muted { color:var(--muted); }
+    .status-pill { display:inline-flex; align-items:center; gap:6px; padding:4px 7px; border-radius:20px; background:#e8e5dd; color:var(--muted); font:10px ui-monospace,monospace; text-transform:uppercase; }
+    .status-pill:before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
+    .status-pill.open { color:var(--coral); background:#f7e4df; }
+    .status-pill.resolved { color:var(--green); background:#e2eee8; }
+    .status-pill.regressed { color:var(--amber); background:#f5ead6; }
+    .filters { display:grid; grid-template-columns:repeat(6,minmax(110px,1fr)); gap:10px; align-items:end; padding:14px; background:#e2dfd6; border:1px solid var(--line); margin-bottom:14px; }
+    .field { min-width:0; }
+    .field input, .field select { width:100%; }
+    .filter-actions { display:flex; gap:7px; }
+    .filter-actions .button { width:100%; }
+    .pager { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; color:var(--muted); font:11px ui-monospace,monospace; }
+    .pager-actions { display:flex; gap:7px; }
+    .pager button { padding:7px 10px; background:var(--panel); color:var(--ink); }
+    .pager button:disabled { cursor:not-allowed; opacity:.4; }
+    .empty { padding:30px 18px; text-align:center; color:var(--muted); font:12px ui-monospace,monospace; }
+    dialog { width:min(720px,calc(100% - 28px)); border:1px solid var(--ink); padding:0; color:var(--ink); background:var(--panel); box-shadow:0 24px 80px rgba(0,0,0,.25); }
+    dialog::backdrop { background:rgba(21,23,27,.55); }
+    .dialog-inner { padding:25px; }
+    .dialog-top { display:flex; justify-content:space-between; gap:20px; align-items:flex-start; border-bottom:1px solid var(--line); padding-bottom:20px; }
+    .dialog-top h2 { margin-top:7px; font-size:30px; }
+    .icon-button { width:34px; height:34px; border:1px solid var(--line); background:transparent; color:var(--ink); }
+    .detail-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:18px 0; }
+    .detail-box { border:1px solid var(--line); padding:11px; }
+    .detail-box small { display:block; color:var(--muted); font:10px ui-monospace,monospace; text-transform:uppercase; }
+    .detail-box strong { display:block; margin-top:8px; font:14px Georgia,serif; overflow-wrap:anywhere; }
+    .occurrence { border-top:1px solid var(--line); padding:14px 0; }
+    .occurrence:first-child { border-top:0; }
+    .occurrence-head { display:flex; justify-content:space-between; gap:10px; color:var(--muted); font:10px ui-monospace,monospace; }
+    .occurrence p { margin:9px 0 0; font-size:12px; white-space:pre-wrap; overflow-wrap:anywhere; }
+    .resolve { display:flex; align-items:end; gap:8px; border-top:1px solid var(--line); padding-top:18px; margin-top:8px; }
+    .resolve .field { flex:1; }
+    .toast { position:fixed; right:22px; bottom:20px; max-width:360px; padding:12px 15px; background:var(--ink); color:#fff; font:12px ui-monospace,monospace; box-shadow:var(--shadow); opacity:0; transform:translateY(8px); pointer-events:none; transition:.2s ease; }
+    .toast.show { opacity:1; transform:none; }
+    .error-message { margin-top:22px; padding:12px 14px; border-left:3px solid var(--coral); background:#f7e4df; color:#7c2e20; font:12px ui-monospace,monospace; }
+    @keyframes rise { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
+    @media (prefers-reduced-motion:reduce) { .view, .toast { animation:none; transition:none; } }
+    @media (max-width:1100px) { .filters { grid-template-columns:repeat(3,minmax(120px,1fr)); } .metric-grid { grid-template-columns:repeat(2,1fr); } }
+    @media (max-width:800px) { .shell { display:block; } .rail { padding:16px 18px; } .brand { margin-bottom:16px; } .rail-label, .rail-foot { display:none; } .nav { display:flex; overflow:auto; gap:4px; } .nav button { white-space:nowrap; } .content { padding:24px 18px 45px; } .topbar { display:block; } .top-actions { justify-content:flex-start; margin-top:20px; } .split { grid-template-columns:1fr; } }
+    @media (max-width:560px) { h1 { font-size:39px; } .metric-grid { grid-template-columns:1fr 1fr; gap:8px; } .metric { padding:13px; min-height:100px; } .metric strong { margin-top:13px; font-size:31px; } .filters { grid-template-columns:1fr 1fr; } .filter-actions { grid-column:1/-1; } .detail-grid { grid-template-columns:1fr 1fr; } .bar-row { grid-template-columns:92px minmax(30px,1fr) 38px; gap:7px; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail">
+      <div class="brand">
+        <div class="brand-mark">S</div>
+        <div><strong>SmartApp</strong><small>Telemetry / control room</small></div>
+      </div>
+      <div class="rail-label">Views</div>
+      <nav class="nav" aria-label="Dashboard views">
+        <button class="active" data-view="overview"><b>01</b> Overview</button>
+        <button data-view="applications"><b>02</b> Applications</button>
+        <button data-view="errors"><b>03</b> Errors</button>
+        <button data-view="installations"><b>04</b> Installations</button>
+      </nav>
+      <div class="rail-foot">The quiet signal matters.<br><span id="railHealth">Waiting for API</span></div>
+    </aside>
+    <main class="content">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">Telemetry / live workspace</div>
+          <h1 id="pageTitle">Operational overview</h1>
+          <p class="lede" id="pageLede">A compact read on adoption, activity, and the health of every SmartApp client.</p>
+          <div class="status"><span class="status-dot" id="statusDot"></span><span id="message">Connecting to telemetry API</span></div>
+        </div>
+        <div class="top-actions">
+          <div><label for="scope">Application scope</label><select id="scope"><option value="">All applications</option></select></div>
+          <button class="button ghost" id="refresh">Refresh data</button>
+        </div>
+      </header>
+
+      <section class="view active" id="view-overview">
+        <div class="view-head"><div><div class="eyebrow">01 / pulse</div><h2>Overview</h2></div><div class="view-kicker" id="overviewStamp">—</div></div>
+        <div class="metric-grid" id="overviewMetrics"></div>
+        <div class="split">
+          <div class="panel"><div class="panel-head"><h3>Application footprint</h3><small>active installations / 30 days</small></div><div id="overviewApps"></div></div>
+          <div class="panel"><div class="panel-head"><h3>Signal notes</h3><small>at a glance</small></div><div id="signalNotes"></div></div>
+        </div>
+      </section>
+
+      <section class="view" id="view-applications">
+        <div class="view-head"><div><div class="eyebrow">02 / portfolio</div><h2>Applications</h2></div><div class="view-kicker">choose a row for its profile</div></div>
+        <div id="applicationContent"></div>
+      </section>
+
+      <section class="view" id="view-errors">
+        <div class="view-head"><div><div class="eyebrow">03 / triage</div><h2>Error groups</h2></div><div class="view-kicker">click a group for occurrences</div></div>
+        <form class="filters" id="errorFilters">
+          <div class="field"><label for="errorApplication">Application</label><select id="errorApplication"><option value="">All applications</option></select></div>
+          <div class="field"><label for="errorStatus">Status</label><select id="errorStatus"><option value="">Any status</option><option value="open">Open</option><option value="regressed">Regressed</option><option value="resolved">Resolved</option></select></div>
+          <div class="field"><label for="errorSearch">Search</label><input id="errorSearch" placeholder="title or exception"></div>
+          <div class="field"><label for="errorVersion">Version</label><input id="errorVersion" placeholder="e.g. 4.8.16"></div>
+          <div class="field"><label for="errorFrom">Seen from</label><input id="errorFrom" type="date"></div>
+          <div class="field"><label for="errorTo">Seen to</label><input id="errorTo" type="date"></div>
+          <div class="filter-actions"><button class="button" type="submit">Apply filters</button><button class="button ghost" type="button" id="resetErrors">Reset</button></div>
+        </form>
+        <div class="table-wrap" id="errorsContent"></div><div class="pager" id="errorsPager"></div>
+      </section>
+
+      <section class="view" id="view-installations">
+        <div class="view-head"><div><div class="eyebrow">04 / reach</div><h2>Installations</h2></div><div class="view-kicker">latest client heartbeat</div></div>
+        <form class="filters" id="installationFilters">
+          <div class="field"><label for="installationApplication">Application</label><select id="installationApplication"><option value="">All applications</option></select></div>
+          <div class="field"><label for="installationVersion">Version</label><input id="installationVersion" placeholder="e.g. 4.8.16"></div>
+          <div class="field"><label for="installationCountry">Country</label><input id="installationCountry" placeholder="DZ"></div>
+          <div class="field"><label for="installationOs">Operating system</label><input id="installationOs" placeholder="Windows"></div>
+          <div class="field"><label for="installationArchitecture">Architecture</label><input id="installationArchitecture" placeholder="x64"></div>
+          <div class="field"><label for="installationLanguage">Language</label><input id="installationLanguage" placeholder="fr-DZ"></div>
+          <div class="field"><label for="installationActive">Active within</label><select id="installationActive"><option value="0">Any time</option><option value="1">24 hours</option><option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option></select></div>
+          <div class="filter-actions"><button class="button" type="submit">Apply filters</button><button class="button ghost" type="button" id="resetInstallations">Reset</button></div>
+        </form>
+        <div class="table-wrap" id="installationsContent"></div><div class="pager" id="installationsPager"></div>
+      </section>
+    </main>
+  </div>
+  <dialog id="errorDialog">
+    <div class="dialog-inner">
+      <div class="dialog-top"><div><div class="eyebrow">Error group / detail</div><h2 id="dialogTitle">Loading…</h2><div class="muted mono" id="dialogType"></div></div><button class="icon-button" id="closeDialog" aria-label="Close">×</button></div>
+      <div class="detail-grid" id="dialogMeta"></div>
+      <div class="panel-head"><h3>Recent occurrences</h3><small id="dialogOccurrenceCount"></small></div>
+      <div id="dialogOccurrences"></div>
+      <form class="resolve" id="resolveForm"><div class="field"><label for="resolveVersion">Resolve in version</label><input id="resolveVersion" placeholder="e.g. 4.8.17"></div><button class="button" type="submit">Mark resolved</button></form>
+    </div>
+  </dialog>
+  <div class="toast" id="toast"></div>
+  <script src="/config.js"></script>
+  <script>
+    const config = window.telemetryConfig || { apiBaseUrl: "http://localhost:5000", adminKey: "" };
+    const headers = config.adminKey ? { "X-Admin-Key": config.adminKey } : {};
+    const $ = id => document.getElementById(id);
+    const state = { view:"overview", scope:"", apps:[], errorPage:1, installationPage:1, currentError:null };
+    const number = value => new Intl.NumberFormat().format(Number(value || 0));
+    const date = value => value ? new Date(value).toLocaleString([], { dateStyle:"medium", timeStyle:"short" }) : "—";
+    const shortDate = value => value ? new Date(value).toLocaleDateString([], { month:"short", day:"numeric" }) : "—";
+    const esc = value => String(value == null ? "" : value).replace(/[&<>"']/g, char => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[char]));
+    const text = value => value || "—";
+    async function get(path) {
+      const response = await fetch(config.apiBaseUrl + path, { headers });
+      if (!response.ok) throw new Error((await response.text()) || response.statusText);
+      return response.json();
+    }
+    async function send(path, body) {
+      const response = await fetch(config.apiBaseUrl + path, { method:"POST", headers:{ ...headers, "Content-Type":"application/json" }, body:JSON.stringify(body) });
+      if (!response.ok) throw new Error((await response.text()) || response.statusText);
+    }
+    function query(values) {
+      const params = new URLSearchParams();
+      Object.keys(values).forEach(key => { if (values[key] !== undefined && values[key] !== null && values[key] !== "") params.set(key, values[key]); });
+      const result = params.toString();
+      return result ? "?" + result : "";
+    }
+    function setMessage(value, bad) {
+      $("message").textContent = value;
+      $("statusDot").classList.toggle("bad", !!bad);
+      $("railHealth").textContent = bad ? "API needs attention" : "API connected / live";
+    }
+    function toast(value) {
+      $("toast").textContent = value; $("toast").classList.add("show");
+      window.clearTimeout(toast.timer); toast.timer = window.setTimeout(() => $("toast").classList.remove("show"), 2800);
+    }
+    function metric(label, value, tone) { return '<div class="metric ' + (tone || "") + '"><small>' + esc(label) + '</small><strong>' + number(value) + '</strong></div>'; }
+    function bars(items, empty) {
+      if (!items || !items.length) return '<div class="empty">' + (empty || "No data yet") + '</div>';
+      const max = Math.max.apply(null, items.map(item => item.count).concat([1]));
+      return '<div class="bars">' + items.slice(0,8).map(item => '<div class="bar-row"><span class="bar-label" title="' + esc(item.name) + '">' + esc(item.name || "Unknown") + '</span><span class="bar-track"><i class="bar-fill" style="width:' + Math.max(3, item.count / max * 100) + '%"></i></span><em>' + number(item.count) + '</em></div>').join("") + '</div>';
+    }
+    function statusPill(value) { return '<span class="status-pill ' + esc((value || "").toLowerCase()) + '">' + esc(value || "unknown") + '</span>'; }
+    function populateApplications() {
+      const options = '<option value="">All applications</option>' + state.apps.map(app => '<option value="' + esc(app.slug) + '">' + esc(app.name) + '</option>').join("");
+      ["scope","errorApplication","installationApplication"].forEach(id => {
+        const select = $(id); const current = select.value; select.innerHTML = options;
+        if (state.apps.some(app => app.slug === current)) select.value = current;
+      });
+      $("scope").value = state.scope;
+    }
+    function showView(view) {
+      state.view = view;
+      document.querySelectorAll(".view").forEach(item => item.classList.toggle("active", item.id === "view-" + view));
+      document.querySelectorAll(".nav button").forEach(item => item.classList.toggle("active", item.dataset.view === view));
+      const titles = { overview:["Operational overview","A compact read on adoption, activity, and the health of every SmartApp client."], applications:["Application profiles","Compare reach, versions, platforms, and the error signal behind each client."], errors:["Error groups","Filter the signal, inspect occurrences, and close the loop on resolved exceptions."], installations:["Installation reach","See the active client footprint and the environment each installation reports."] };
+      $("pageTitle").textContent = titles[view][0]; $("pageLede").textContent = titles[view][1];
+      loadView().catch(handleError);
+    }
+    function handleError(error) {
+      setMessage("Unable to load telemetry data", true);
+      const target = state.view === "overview" ? $("overviewMetrics") : state.view === "applications" ? $("applicationContent") : state.view === "errors" ? $("errorsContent") : $("installationsContent");
+      if (target) target.innerHTML = '<div class="error-message">' + esc(error.message || error) + '</div>';
+    }
+    async function loadApplications() {
+      state.apps = await get("/api/v1/applications");
+      populateApplications();
+    }
+    async function loadOverview() {
+      const data = await get("/api/v1/dashboard/overview");
+      $("overviewStamp").textContent = "updated " + new Date().toLocaleTimeString();
+      $("overviewMetrics").innerHTML = [
+        metric("Total installations", data.totalInstallations, "accent"),
+        metric("Active today", data.activeToday, "blue"),
+        metric("Active / 7 days", data.active7Days, "green"),
+        metric("Active / 30 days", data.active30Days, ""),
+        metric("Events today", data.eventsToday, "blue"),
+        metric("Errors today", data.errorsToday, "accent"),
+        metric("Crash-free installations", data.crashFreeInstallations, "green")
+      ].join("");
+      $("overviewApps").innerHTML = bars((data.applications || []).map(app => ({ name:app.name, count:app.active30Days })), "No applications registered");
+      const total = data.totalInstallations || 0;
+      const active = data.active30Days || 0;
+      const notes = [
+        ["Coverage", total ? Math.round(active / total * 100) + "% active in 30 days" : "No installation data"],
+        ["Errors", data.errorsToday ? number(data.errorsToday) + " errors need a look" : "No errors reported today"],
+        ["Inventory", number((data.applications || []).length) + " application" + ((data.applications || []).length === 1 ? "" : "s") + " in scope"]
+      ];
+      $("signalNotes").innerHTML = notes.map(item => '<div style="padding:12px 0;border-bottom:1px solid var(--line)"><div class="muted mono">' + esc(item[0]) + '</div><div style="margin-top:6px">' + esc(item[1]) + '</div></div>').join("");
+    }
+    function applicationTable(apps) {
+      if (!apps || !apps.length) return '<div class="empty">No applications registered yet.</div>';
+      return '<div class="table-wrap"><table><thead><tr><th>Application</th><th>Slug</th><th>Installations</th><th>Today</th><th>7 days</th><th>30 days</th></tr></thead><tbody>' + apps.map(app => '<tr class="clickable" data-action="application" data-slug="' + esc(app.slug) + '"><td><strong>' + esc(app.name) + '</strong></td><td class="mono">' + esc(app.slug) + '</td><td>' + number(app.installations) + '</td><td>' + number(app.activeToday) + '</td><td>' + number(app.active7Days) + '</td><td>' + number(app.active30Days) + '</td></tr>').join("") + '</tbody></table></div>';
+    }
+    async function loadApplicationsView() {
+      if (!state.scope) { const data = await get("/api/v1/dashboard/overview"); $("applicationContent").innerHTML = applicationTable(data.applications); return; }
+      const data = await get("/api/v1/dashboard/applications/" + encodeURIComponent(state.scope));
+      const summary = data.summary;
+      $("applicationContent").innerHTML = '<div class="metric-grid">' + metric("Installations", summary.installations, "accent") + metric("Active today", summary.activeToday, "blue") + metric("Active / 7 days", summary.active7Days, "green") + metric("Active / 30 days", summary.active30Days, "") + '</div><div class="split"><div class="panel"><div class="panel-head"><h3>' + esc(summary.name) + '</h3><small class="mono">' + esc(summary.slug) + '</small></div>' + bars(data.versions, "No version data") + '</div><div class="panel"><div class="panel-head"><h3>Platform mix</h3><small>reported by clients</small></div>' + bars(data.operatingSystems, "No platform data") + '</div></div><div class="split"><div class="panel"><div class="panel-head"><h3>Countries</h3><small>installation origin</small></div>' + bars(data.countries, "No country data") + '</div><div class="panel"><div class="panel-head"><h3>Languages</h3><small>client locale</small></div>' + bars(data.languages, "No language data") + '</div></div><div class="view-head" style="margin-top:30px"><div><div class="eyebrow">Recent signal</div><h3>Latest error groups</h3></div><button class="button ghost" data-action="errors-for-app">Open error view</button></div>' + errorsTable(data.recentErrors, summary.slug);
+    }
+    function errorsTable(items, slug) {
+      if (!items || !items.length) return '<div class="table-wrap"><div class="empty">No error groups match this application.</div></div>';
+      return '<div class="table-wrap"><table><thead><tr><th>Title</th><th>Occurrences</th><th>Affected</th><th>First seen</th><th>Last seen</th><th>Versions</th><th>Status</th></tr></thead><tbody>' + items.map(item => '<tr class="clickable" data-action="error" data-error="' + esc(item.id) + '" data-app="' + esc(slug || "") + '"><td><strong>' + esc(item.title) + '</strong><div class="muted mono">' + esc(item.exceptionType) + '</div></td><td>' + number(item.occurrences) + '</td><td>' + number(item.affectedInstallations) + '</td><td>' + esc(shortDate(item.firstSeenAt)) + '</td><td>' + esc(date(item.lastSeenAt)) + '</td><td class="mono">' + esc(text(item.firstSeenVersion)) + ' → ' + esc(text(item.lastSeenVersion)) + '</td><td>' + statusPill(item.status) + '</td></tr>').join("") + '</tbody></table></div>';
+    }
+    function errorQuery(page) {
+      return query({ application:$("errorApplication").value, status:$("errorStatus").value, search:$("errorSearch").value.trim(), version:$("errorVersion").value.trim(), from:$("errorFrom").value, to:$("errorTo").value, page:page, pageSize:25 });
+    }
+    async function loadErrors() {
+      const data = await get("/api/v1/dashboard/errors" + errorQuery(state.errorPage));
+      $("errorsContent").innerHTML = data.items.length ? '<table><thead><tr><th>Application</th><th>Error group</th><th>Occurrences</th><th>Affected</th><th>First seen</th><th>Last seen</th><th>Versions</th><th>Status</th></tr></thead><tbody>' + data.items.map(item => '<tr class="clickable" data-action="error" data-error="' + esc(item.id) + '" data-app="' + esc(item.applicationSlug) + '"><td><strong>' + esc(item.application) + '</strong><div class="muted mono">' + esc(item.applicationSlug) + '</div></td><td><strong>' + esc(item.title) + '</strong><div class="muted mono">' + esc(item.exceptionType) + '</div></td><td>' + number(item.occurrences) + '</td><td>' + number(item.affectedInstallations) + '</td><td>' + esc(shortDate(item.firstSeenAt)) + '</td><td>' + esc(date(item.lastSeenAt)) + '</td><td class="mono">' + esc(text(item.firstSeenVersion)) + ' → ' + esc(text(item.lastSeenVersion)) + '</td><td>' + statusPill(item.status) + '</td></tr>').join("") + '</tbody></table>' : '<div class="empty">No error groups match these filters.</div>';
+      renderPager("errorsPager", data.total, data.page, data.pageSize, page => { state.errorPage = page; loadErrors().catch(handleError); });
+    }
+    function installationQuery(page) {
+      return query({ application:$("installationApplication").value, version:$("installationVersion").value.trim(), country:$("installationCountry").value.trim(), operatingSystem:$("installationOs").value.trim(), architecture:$("installationArchitecture").value.trim(), language:$("installationLanguage").value.trim(), activeWithinDays:$("installationActive").value, page:page, pageSize:25 });
+    }
+    async function loadInstallations() {
+      const data = await get("/api/v1/dashboard/installations" + installationQuery(state.installationPage));
+      $("installationsContent").innerHTML = data.items.length ? '<table><thead><tr><th>Application</th><th>Installation</th><th>Version</th><th>Environment</th><th>Language</th><th>First seen</th><th>Last heartbeat</th></tr></thead><tbody>' + data.items.map(item => '<tr><td><strong>' + esc(item.application) + '</strong><div class="muted mono">' + esc(item.applicationSlug) + '</div></td><td class="mono">' + esc(item.installationId) + '</td><td>' + esc(text(item.currentVersion)) + '</td><td>' + esc([item.operatingSystem, item.architecture, item.countryCode].filter(Boolean).join(" / ") || "—") + '</td><td>' + esc(text(item.language)) + '</td><td>' + esc(shortDate(item.firstSeenAt)) + '</td><td>' + esc(date(item.lastSeenAt)) + '</td></tr>').join("") + '</tbody></table>' : '<div class="empty">No installations match these filters.</div>';
+      renderPager("installationsPager", data.total, data.page, data.pageSize, page => { state.installationPage = page; loadInstallations().catch(handleError); });
+    }
+    function renderPager(id, total, page, pageSize, go) {
+      const pages = Math.max(1, Math.ceil(total / pageSize)); const target = $(id);
+      target.innerHTML = '<span>' + (total ? ((page - 1) * pageSize + 1) + "–" + Math.min(page * pageSize, total) + " of " + number(total) : "0 results") + '</span><span class="pager-actions"><button data-page="prev" ' + (page <= 1 ? "disabled" : "") + '>Previous</button><button data-page="next" ' + (page >= pages ? "disabled" : "") + '>Next</button></span>';
+      target.querySelector('[data-page="prev"]').addEventListener("click", () => go(page - 1));
+      target.querySelector('[data-page="next"]').addEventListener("click", () => go(page + 1));
+    }
+    async function openError(id, slug) {
+      state.currentError = { id:id, slug:slug };
+      $("errorDialog").showModal(); $("dialogTitle").textContent = "Loading…"; $("dialogOccurrences").innerHTML = '<div class="empty">Loading occurrences…</div>';
+      const data = await get("/api/v1/dashboard/applications/" + encodeURIComponent(slug) + "/errors/" + encodeURIComponent(id));
+      $("dialogTitle").textContent = data.title; $("dialogType").textContent = data.exceptionType;
+      $("dialogMeta").innerHTML = [["Status", data.isRegressed ? "Regressed" : data.isResolved ? "Resolved" : "Open"],["Occurrences",number(data.occurrences)],["Affected installations",number(data.affectedInstallations)],["First seen",date(data.firstSeenAt)],["Last seen",date(data.lastSeenAt)],["Resolved in",text(data.resolvedInVersion)]].map(item => '<div class="detail-box"><small>' + esc(item[0]) + '</small><strong>' + esc(item[1]) + '</strong></div>').join("");
+      $("dialogOccurrenceCount").textContent = number((data.recentOccurrences || []).length) + " shown";
+      $("dialogOccurrences").innerHTML = data.recentOccurrences && data.recentOccurrences.length ? data.recentOccurrences.map(item => '<div class="occurrence"><div class="occurrence-head"><span>' + esc(item.appVersion || "unknown version") + " / " + esc(item.installationId) + '</span><span>' + esc(date(item.occurredAt)) + '</span></div><p>' + esc(item.message || item.stackTrace || "No message") + '</p></div>').join("") : '<div class="empty">No occurrence details available.</div>';
+      $("resolveForm").style.display = data.isResolved && !data.isRegressed ? "none" : "flex";
+    }
+    async function loadView() {
+      if (state.view === "overview") await loadOverview();
+      if (state.view === "applications") await loadApplicationsView();
+      if (state.view === "errors") await loadErrors();
+      if (state.view === "installations") await loadInstallations();
+      setMessage("Updated " + new Date().toLocaleTimeString(), false);
+    }
+    async function refresh() {
+      setMessage("Refreshing telemetry data", false);
+      try { await loadApplications(); await loadView(); } catch (error) { handleError(error); }
+    }
+    document.querySelectorAll(".nav button").forEach(button => button.addEventListener("click", () => showView(button.dataset.view)));
+    $("scope").addEventListener("change", event => { state.scope = event.target.value; showView(state.scope ? "applications" : "overview"); });
+    $("refresh").addEventListener("click", refresh);
+    $("errorFilters").addEventListener("submit", event => { event.preventDefault(); state.errorPage = 1; loadErrors().catch(handleError); });
+    $("installationFilters").addEventListener("submit", event => { event.preventDefault(); state.installationPage = 1; loadInstallations().catch(handleError); });
+    $("resetErrors").addEventListener("click", () => { $("errorFilters").reset(); state.errorPage = 1; loadErrors().catch(handleError); });
+    $("resetInstallations").addEventListener("click", () => { $("installationFilters").reset(); state.installationPage = 1; loadInstallations().catch(handleError); });
+    $("closeDialog").addEventListener("click", () => $("errorDialog").close());
+    $("errorDialog").addEventListener("click", event => { if (event.target === $("errorDialog")) $("errorDialog").close(); });
+    $("resolveForm").addEventListener("submit", async event => {
+      event.preventDefault(); if (!state.currentError) return;
+      const version = $("resolveVersion").value.trim(); if (!version) { toast("Enter the version that resolved this group."); return; }
+      try { await send("/api/v1/dashboard/errors/" + encodeURIComponent(state.currentError.id) + "/resolve", { version:version }); toast("Error group marked as resolved."); $("errorDialog").close(); await loadView(); } catch (error) { toast(error.message || "Could not resolve error group."); }
+    });
+    document.addEventListener("click", event => {
+      const action = event.target.closest("[data-action]"); if (!action) return;
+      if (action.dataset.action === "application") { state.scope = action.dataset.slug; $("scope").value = state.scope; showView("applications"); }
+      if (action.dataset.action === "errors-for-app") { $("errorApplication").value = state.scope; state.errorPage = 1; showView("errors"); }
+      if (action.dataset.action === "error") openError(action.dataset.error, action.dataset.app).catch(error => toast(error.message || "Could not load error details."));
+    });
+    (async function start() { try { await loadApplications(); await loadView(); } catch (error) { handleError(error); } })();
+  </script>
+</body>
+</html>

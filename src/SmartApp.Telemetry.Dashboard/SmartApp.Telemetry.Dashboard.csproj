@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <AssemblyName>SmartApp.Telemetry.Dashboard</AssemblyName>
+    <RootNamespace>SmartApp.Telemetry.Dashboard</RootNamespace>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,17 @@
+.vs/
+.idea/
+bin/
+obj/
+TestResults/
+artifacts/
+*.user
+*.suo
+*.nupkg
+*.snupkg
+*.pdb
+*.db
+*.sqlite
+*.sqlite3
+appsettings.Local.json
+appsettings.*.Local.json
+

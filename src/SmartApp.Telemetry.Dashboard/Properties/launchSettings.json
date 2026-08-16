@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "SmartApp.Telemetry.Dashboard": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:3477;http://localhost:3478"
+    }
+  }
+}

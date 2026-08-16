@@ -1,0 +1,54 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartApp.Telemetry.Core", "src\SmartApp.Telemetry.Core\SmartApp.Telemetry.Core.csproj", "{B5F10DBA-2A3D-4A44-A4F8-3C1548E1D1A1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartApp.Telemetry.Infrastructure", "src\SmartApp.Telemetry.Infrastructure\SmartApp.Telemetry.Infrastructure.csproj", "{A2D8A93E-90D4-4B24-8A0C-4D086E1D3B2C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartApp.Telemetry.Api", "src\SmartApp.Telemetry.Api\SmartApp.Telemetry.Api.csproj", "{C3E9BA4F-1F6D-4E34-BF0C-5D197F2E4C3D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartApp.Telemetry.Dashboard", "src\SmartApp.Telemetry.Dashboard\SmartApp.Telemetry.Dashboard.csproj", "{D4F0CB50-2A7E-4F45-C01D-6E2A803F5D4E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartApp.Telemetry.Client", "clients\SmartApp.Telemetry.Client\SmartApp.Telemetry.Client.csproj", "{E501DC61-3B8F-4056-D12E-7F3B91406E5F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartApp.Telemetry.Api.Tests", "tests\SmartApp.Telemetry.Api.Tests\SmartApp.Telemetry.Api.Tests.csproj", "{F612ED72-4C90-4167-E23F-804CA2517F60}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartApp.Telemetry.Client.Tests", "tests\SmartApp.Telemetry.Client.Tests\SmartApp.Telemetry.Client.Tests.csproj", "{A723FE83-5DA1-4278-F340-915DB3628071}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B5F10DBA-2A3D-4A44-A4F8-3C1548E1D1A1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B5F10DBA-2A3D-4A44-A4F8-3C1548E1D1A1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B5F10DBA-2A3D-4A44-A4F8-3C1548E1D1A1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B5F10DBA-2A3D-4A44-A4F8-3C1548E1D1A1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A2D8A93E-90D4-4B24-8A0C-4D086E1D3B2C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A2D8A93E-90D4-4B24-8A0C-4D086E1D3B2C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A2D8A93E-90D4-4B24-8A0C-4D086E1D3B2C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A2D8A93E-90D4-4B24-8A0C-4D086E1D3B2C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C3E9BA4F-1F6D-4E34-BF0C-5D197F2E4C3D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C3E9BA4F-1F6D-4E34-BF0C-5D197F2E4C3D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C3E9BA4F-1F6D-4E34-BF0C-5D197F2E4C3D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C3E9BA4F-1F6D-4E34-BF0C-5D197F2E4C3D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D4F0CB50-2A7E-4F45-C01D-6E2A803F5D4E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D4F0CB50-2A7E-4F45-C01D-6E2A803F5D4E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D4F0CB50-2A7E-4F45-C01D-6E2A803F5D4E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D4F0CB50-2A7E-4F45-C01D-6E2A803F5D4E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E501DC61-3B8F-4056-D12E-7F3B91406E5F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E501DC61-3B8F-4056-D12E-7F3B91406E5F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E501DC61-3B8F-4056-D12E-7F3B91406E5F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E501DC61-3B8F-4056-D12E-7F3B91406E5F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F612ED72-4C90-4167-E23F-804CA2517F60}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F612ED72-4C90-4167-E23F-804CA2517F60}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F612ED72-4C90-4167-E23F-804CA2517F60}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F612ED72-4C90-4167-E23F-804CA2517F60}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A723FE83-5DA1-4278-F340-915DB3628071}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A723FE83-5DA1-4278-F340-915DB3628071}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A723FE83-5DA1-4278-F340-915DB3628071}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A723FE83-5DA1-4278-F340-915DB3628071}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

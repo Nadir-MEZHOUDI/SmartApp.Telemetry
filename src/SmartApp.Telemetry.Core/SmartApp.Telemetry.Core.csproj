@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>SmartApp.Telemetry.Core</AssemblyName>
+    <RootNamespace>SmartApp.Telemetry.Core</RootNamespace>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,55 @@
+trigger:
+- master
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  clientProject: 'clients/SmartApp.Telemetry.Client/SmartApp.Telemetry.Client.csproj'
+  buildConfiguration: 'Release'
+
+steps:
+- task: DotNetCoreCLI@2
+  displayName: dotnet restore
+  inputs:
+    command: restore
+    projects: '$(clientProject)'
+
+- task: DotNetCoreCLI@2
+  displayName: dotnet build
+  inputs:
+    command: build
+    projects: '$(clientProject)'
+    arguments: '--configuration $(buildConfiguration) -p:GeneratePackageOnBuild=false'
+
+- task: DotNetCoreCLI@2
+  displayName: dotnet test
+  inputs:
+    command: test
+    projects: 'tests/SmartApp.Telemetry.Client.Tests/SmartApp.Telemetry.Client.Tests.csproj'
+    arguments: '--configuration $(buildConfiguration) --no-restore'
+
+- task: DotNetCoreCLI@2
+  displayName: dotnet pack SmartApp.Telemetry.Client
+  inputs:
+    command: pack
+    packagesToPack: '$(clientProject)'
+    configuration: '$(buildConfiguration)'
+    nobuild: true
+    arguments: '--output $(Build.ArtifactStagingDirectory) -p:PackageOutputPath=$(Build.ArtifactStagingDirectory)'
+
+- task: DotNetCoreCLI@2
+  displayName: push to Azure Artifacts
+  inputs:
+    command: push
+    packagesToPush: '$(Build.ArtifactStagingDirectory)/*.nupkg'
+    nuGetFeedType: internal
+    publishVstsFeed: '1ed0d063-2001-4386-82a2-66c01ee046b2'
+    publishPackageMetadata: false
+
+- task: PublishBuildArtifacts@1
+  displayName: publish NuGet artifact
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+    ArtifactName: 'SmartApp.Telemetry.Client'
+    publishLocation: Container

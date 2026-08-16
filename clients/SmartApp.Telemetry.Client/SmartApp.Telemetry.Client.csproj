@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>SmartApp.Telemetry.Client</AssemblyName>
+    <RootNamespace>SmartApp.Telemetry.Client</RootNamespace>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageOutputPath>D:\Programming\LocalNuget</PackageOutputPath>
+    <PackageId>SmartApp.Telemetry.Client</PackageId>
+    <Authors>SmartApp</Authors>
+    <Description>Reusable, failure-tolerant telemetry client for .NET applications.</Description>
+    <PackageTags>telemetry;analytics;dotnet;wpf;winforms;desktop</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+  <PropertyGroup>
+    <Year>$([System.DateTime]::Now.Year)</Year>
+    <Month>$([System.DateTime]::Now.Month)</Month>
+    <Day>$([System.DateTime]::Now.Day)</Day>
+    <Major>$([MSBuild]::Subtract($(Year),2022))</Major>
+    <Version>$(Major).$(Month).$(Day)</Version>
+    <AssemblyVersion>$(Version)</AssemblyVersion>
+    <FileVersion>$(Version)</FileVersion>
+    <PackageVersion>$(Version)</PackageVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.0" />
+  </ItemGroup>
+</Project>
