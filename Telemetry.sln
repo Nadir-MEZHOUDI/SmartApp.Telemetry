@@ -1,6 +1,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.31903.59
+# Visual Studio Version 18
+VisualStudioVersion = 18.10.12106.202 insiders
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartApp.Telemetry.Core", "src\SmartApp.Telemetry.Core\SmartApp.Telemetry.Core.csproj", "{B5F10DBA-2A3D-4A44-A4F8-3C1548E1D1A1}"
 EndProject
@@ -13,6 +13,22 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartApp.Telemetry.Web.Tests", "tests\SmartApp.Telemetry.Web.Tests\SmartApp.Telemetry.Web.Tests.csproj", "{F612ED72-4C90-4167-E23F-804CA2517F60}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartApp.Telemetry.Client.Tests", "tests\SmartApp.Telemetry.Client.Tests\SmartApp.Telemetry.Client.Tests.csproj", "{A723FE83-5DA1-4278-F340-915DB3628071}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{ED1FC7F4-CB2B-4305-9ED6-26B50C3289F8}"
+	ProjectSection(SolutionItems) = preProject
+		.dockerignore = .dockerignore
+		.env = .env
+		.env.example = .env.example
+		.gitignore = .gitignore
+		AGENTS.md = AGENTS.md
+		azure-pipelines.yml = azure-pipelines.yml
+		DeployToVPS.yml = DeployToVPS.yml
+		Directory.Build.props = Directory.Build.props
+		docker-compose.vps.yml = docker-compose.vps.yml
+		docker-compose.yml = docker-compose.yml
+		Dockerfile.web = Dockerfile.web
+		README.md = README.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -44,5 +60,8 @@ Global
 		{A723FE83-5DA1-4278-F340-915DB3628071}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A723FE83-5DA1-4278-F340-915DB3628071}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A723FE83-5DA1-4278-F340-915DB3628071}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
 	EndGlobalSection
 EndGlobal
