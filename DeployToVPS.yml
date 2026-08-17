@@ -9,7 +9,7 @@ pool:
 variables:
   buildConfiguration: 'Release'
   packageOutput: '$(Build.ArtifactStagingDirectory)/nuget'
-  vpsComposeFile: 'docker-compose.yml'
+  vpsComposeFile: 'docker-compose.vps.yml'
   vpsRoot: '/opt/smartapp-telemetry'
   imageRepository: 'nadir-mezhoudi/smartapp-telemetry'
 
@@ -75,8 +75,8 @@ stages:
       inputs:
         command: buildAndPush
         repository: '$(imageRepository)'
-        dockerfile: 'Dockerfile.web'
-        buildContext: .
+        dockerfile: '$(Build.SourcesDirectory)/src/SmartApp.Telemetry.Web/Dockerfile'
+        buildContext: '$(Build.SourcesDirectory)'
         tags: |
           latest
           $(Build.BuildNumber)

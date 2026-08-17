@@ -1,31 +1,31 @@
-services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: telemetry
-      POSTGRES_USER: telemetry
-      POSTGRES_PASSWORD: change-this-password
-    volumes:
-      - telemetry-postgres:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U telemetry -d telemetry"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+name: SmartApp.Telemetry
 
+services:
   web:
+    image: ghcr.io/nadir-mezhoudi/smartapp-telemetry:latest
     build:
       context: .
-      dockerfile: Dockerfile.web
-    environment:
-      ConnectionStrings__Telemetry: Host=postgres;Port=5432;Database=telemetry;Username=telemetry;Password=change-this-password
-      Dashboard__AdminKey: change-this-admin-key
-      TelemetryApi__BaseUrl: http://localhost:8080
+      dockerfile: src/SmartApp.Telemetry.Web/Dockerfile
+    container_name: smartapp-telemetry-web
     ports:
-      - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
+      - "127.0.0.1:${TELEMETRY_WEB_PORT:-8091}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      ConnectionStrings__Telemetry: ${ConnectionStrings__Telemetry:?Set ConnectionStrings__Telemetry in .env}
+      Dashboard__AdminKey: ${DASHBOARD_ADMIN_KEY:?Set DASHBOARD_ADMIN_KEY in .env}
+      TelemetryApi__BaseUrl: http://localhost:8080
+    networks:
+      - shared-net
+    user: "0:0"
+    volumes:
+      - telemetry-dpkeys:/root/.aspnet/DataProtection-Keys
+    restart: unless-stopped
 
 volumes:
-  telemetry-postgres:
+  telemetry-dpkeys:
+
+networks:
+  shared-net:
+    external: true

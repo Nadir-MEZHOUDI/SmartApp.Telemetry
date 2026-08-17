@@ -1,6 +1,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.10.12106.202 insiders
+VisualStudioVersion = 18.10.12106.202
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartApp.Telemetry.Core", "src\SmartApp.Telemetry.Core\SmartApp.Telemetry.Core.csproj", "{B5F10DBA-2A3D-4A44-A4F8-3C1548E1D1A1}"
 EndProject
@@ -24,9 +24,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		azure-pipelines.yml = azure-pipelines.yml
 		DeployToVPS.yml = DeployToVPS.yml
 		Directory.Build.props = Directory.Build.props
-		docker-compose.vps.yml = docker-compose.vps.yml
 		docker-compose.yml = docker-compose.yml
-		Dockerfile.web = Dockerfile.web
+		src\SmartApp.Telemetry.Web\Dockerfile = src\SmartApp.Telemetry.Web\Dockerfile
 		README.md = README.md
 	EndProjectSection
 EndProject
@@ -63,5 +62,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C371F95C-2D68-4ABE-AEBF-58BD5B759583}
 	EndGlobalSection
 EndGlobal

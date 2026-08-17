@@ -7,7 +7,7 @@
 - src/SmartApp.Telemetry.Web: combined ASP.NET Core API and interactive Blazor Web App with Razor pages, shared components, API client, health checks, rate limiting, and Serilog configuration.
 - clients/SmartApp.Telemetry.Client: standalone .NET 10 NuGet SDK for WPF, WinForms, and other applications.
 - tests/SmartApp.Telemetry.Web.Tests and tests/SmartApp.Telemetry.Client.Tests: xUnit tests.
-- nginx/, docker-compose*.yml, Dockerfile.web, azure-pipelines.yml, and DeployToVPS.yml: deployment and packaging assets.
+- nginx/, docker-compose*.yml, src/SmartApp.Telemetry.Web/Dockerfile, azure-pipelines.yml, and DeployToVPS.yml: deployment and packaging assets.
 
 Keep shared behavior in the appropriate project; do not duplicate telemetry logic in consuming applications.
 
