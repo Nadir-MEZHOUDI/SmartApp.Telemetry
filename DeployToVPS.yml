@@ -11,7 +11,6 @@ variables:
   packageOutput: '$(Build.ArtifactStagingDirectory)/nuget'
   vpsComposeFile: 'docker-compose.vps.yml'
   vpsRoot: '/opt/smartapp-telemetry'
-  publishFeed: '1ed0d063-2001-4386-82a2-66c01ee046b2'
   imageRepository: 'nadir-mezhoudi/smartapp-telemetry'
 
 stages:
@@ -52,18 +51,6 @@ stages:
         nobuild: true
         packDirectory: '$(packageOutput)'
         versioningScheme: off
-
-    - task: NuGetAuthenticate@1
-      displayName: Authenticate to Azure Artifacts
-
-    - task: DotNetCoreCLI@2
-      displayName: Push Client package to Azure Artifacts
-      inputs:
-        command: push
-        packagesToPush: '$(packageOutput)/*.nupkg'
-        nuGetFeedType: internal
-        publishVstsFeed: '$(publishFeed)'
-        publishPackageMetadata: false
 
     - task: PublishBuildArtifacts@1
       displayName: Publish Client package artifact
