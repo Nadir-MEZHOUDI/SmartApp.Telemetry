@@ -9,7 +9,7 @@ pool:
 variables:
   buildConfiguration: 'Release'
   packageOutput: '$(Build.ArtifactStagingDirectory)/nuget'
-  vpsComposeFile: 'docker-compose.vps.yml'
+  vpsComposeFile: 'docker-compose.yml'
   vpsRoot: '/opt/smartapp-telemetry'
   imageRepository: 'nadir-mezhoudi/smartapp-telemetry'
 
