@@ -6,6 +6,7 @@ pool:
 
 variables:
   clientProject: 'clients/SmartApp.Telemetry.Client/SmartApp.Telemetry.Client.csproj'
+  clientTestProject: 'tests/SmartApp.Telemetry.Client.Tests/SmartApp.Telemetry.Client.Tests.csproj'
   buildConfiguration: 'Release'
 
 steps:
@@ -13,7 +14,7 @@ steps:
   displayName: dotnet restore
   inputs:
     command: restore
-    projects: '$(clientProject)'
+    projects: '$(clientTestProject)'
 
 - task: DotNetCoreCLI@2
   displayName: dotnet build
@@ -26,7 +27,7 @@ steps:
   displayName: dotnet test
   inputs:
     command: test
-    projects: 'tests/SmartApp.Telemetry.Client.Tests/SmartApp.Telemetry.Client.Tests.csproj'
+    projects: '$(clientTestProject)'
     arguments: '--configuration $(buildConfiguration) --no-restore'
 
 - task: DotNetCoreCLI@2
