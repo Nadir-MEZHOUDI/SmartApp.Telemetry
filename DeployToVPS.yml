@@ -1,0 +1,117 @@
+trigger:
+  branches:
+    include:
+    - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  buildConfiguration: 'Release'
+  packageOutput: '$(Build.ArtifactStagingDirectory)/nuget'
+  vpsComposeFile: 'docker-compose.vps.yml'
+  vpsRoot: '/opt/smartapp-telemetry'
+  publishFeed: '1ed0d063-2001-4386-82a2-66c01ee046b2'
+  imageRepository: 'nadir-mezhoudi/smartapp-telemetry'
+
+stages:
+- stage: BuildAndPush
+  displayName: Build & Push
+  jobs:
+  - job: ValidateAndPackage
+    displayName: Validate solution and publish Client package
+    steps:
+    - checkout: self
+
+    - task: DotNetCoreCLI@2
+      displayName: Restore solution
+      inputs:
+        command: restore
+        projects: Telemetry.sln
+
+    - task: DotNetCoreCLI@2
+      displayName: Build solution
+      inputs:
+        command: build
+        projects: Telemetry.sln
+        arguments: '--configuration $(buildConfiguration) --no-restore -p:GeneratePackageOnBuild=false'
+
+    - task: DotNetCoreCLI@2
+      displayName: Test solution
+      inputs:
+        command: test
+        projects: Telemetry.sln
+        arguments: '--configuration $(buildConfiguration) --no-build --no-restore'
+
+    - task: DotNetCoreCLI@2
+      displayName: Pack SmartApp.Telemetry.Client
+      inputs:
+        command: pack
+        packagesToPack: clients/SmartApp.Telemetry.Client/SmartApp.Telemetry.Client.csproj
+        configuration: '$(buildConfiguration)'
+        nobuild: true
+        packDirectory: '$(packageOutput)'
+        versioningScheme: off
+
+    - task: NuGetAuthenticate@1
+      displayName: Authenticate to Azure Artifacts
+
+    - task: DotNetCoreCLI@2
+      displayName: Push Client package to Azure Artifacts
+      inputs:
+        command: push
+        packagesToPush: '$(packageOutput)/*.nupkg'
+        nuGetFeedType: internal
+        publishVstsFeed: '$(publishFeed)'
+        publishPackageMetadata: false
+
+    - task: PublishBuildArtifacts@1
+      displayName: Publish Client package artifact
+      inputs:
+        PathtoPublish: '$(packageOutput)'
+        ArtifactName: SmartApp.Telemetry.Client
+        publishLocation: Container
+
+  - job: BuildPush
+    displayName: Build and push Web image to GHCR
+    steps:
+    - checkout: self
+
+    - task: Docker@2
+      displayName: Login GHCR
+      inputs:
+        command: login
+        containerRegistry: 'ghcr-login'
+
+    - task: Docker@2
+      displayName: Build and push Web image
+      inputs:
+        command: buildAndPush
+        repository: '$(imageRepository)'
+        dockerfile: 'Dockerfile.web'
+        buildContext: .
+        tags: |
+          latest
+          $(Build.BuildNumber)
+
+- stage: Deploy
+  displayName: Deploy to VPS
+  dependsOn:
+  - BuildAndPush
+  condition: succeeded()
+  jobs:
+  - job: DeployVps
+    displayName: SSH deploy
+    steps:
+    - task: SSH@0
+      displayName: Pull and start Compose stack
+      inputs:
+        sshEndpoint: 'vps-ssh'
+        runOptions: inline
+        inline: |-
+          set -e
+          cd $(vpsRoot)
+          docker network ls | grep -q "shared-net" || docker network create shared-net
+          (docker compose -f $(vpsComposeFile) pull) 2>&1
+          (docker compose -f $(vpsComposeFile) up -d --remove-orphans) 2>&1
+          (docker compose -f $(vpsComposeFile) ps) 2>&1

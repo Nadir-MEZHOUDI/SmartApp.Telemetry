@@ -16,7 +16,7 @@
 - DAU/WAU/MAU مبنية على Installation.LastSeenAt.
 - Rate limiting، body limit، allowed event names، health checks، وCloudflare country header.
 - Background maintenance للـ daily aggregates وretention.
-- Docker Compose لـ PostgreSQL وWeb.
+- Docker Compose محلي لـ PostgreSQL وWeb، وCompose إنتاجي منفصل للـ VPS.
 
 ## التشغيل المحلي
 
@@ -48,6 +48,16 @@ dotnet pack clients/SmartApp.Telemetry.Client/SmartApp.Telemetry.Client.csproj -
 - OpenAPI: http://localhost:8080/openapi/v1.json
 
 غيّر كلمات مرور PostgreSQL وDashboard__AdminKey قبل أي نشر عام.
+
+## النشر إلى VPS
+
+يحتوي DeployToVPS.yml على pipeline الإنتاج. عند الدفع إلى main يقوم بـ:
+
+- بناء واختبار الحل ونشر SmartApp.Telemetry.Client إلى Azure Artifacts.
+- بناء ودفع صورة ghcr.io/nadir-mezhoudi/smartapp-telemetry إلى GHCR.
+- الاتصال بالـ VPS عبر خدمة Azure DevOps المسماة vps-ssh وتشغيل docker-compose.vps.yml في /opt/smartapp-telemetry.
+
+يجب إعداد خدمتي Azure DevOps باسم ghcr-login وvps-ssh. يجب أن يحتوي الـ VPS مسبقًا على docker-compose.vps.yml وملف .env مبني على [.env.example](.env.example)، وأن يكون قادرًا على سحب صورة GHCR. لا تُحفظ الأسرار داخل المستودع أو YAML.
 
 ## تسجيل تطبيق جديد
 
