@@ -10,5 +10,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 EXPOSE 8080
 ENV ASPNETCORE_URLS=http://+:8080
-COPY --from=build /app/publish .
+RUN useradd --system --uid 1000 --create-home --shell /usr/sbin/nologin telemetry
+USER telemetry
+COPY --from=build --chown=telemetry:telemetry /app/publish .
 ENTRYPOINT ["dotnet", "SmartApp.Telemetry.Web.dll"]

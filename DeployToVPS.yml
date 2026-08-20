@@ -40,7 +40,19 @@ stages:
       inputs:
         command: test
         projects: Telemetry.sln
-        arguments: '--configuration $(buildConfiguration) --no-build --no-restore'
+        arguments: '--configuration $(buildConfiguration) --no-build --no-restore --collect:"XPlat Code Coverage" --results-directory $(Agent.TempDirectory)/coverage'
+
+    - script: dotnet tool install --global dotnet-ef
+      displayName: Install dotnet-ef
+
+    - script: dotnet ef migrations has-pending-model-changes --project src/SmartApp.Telemetry.Infrastructure --startup-project src/SmartApp.Telemetry.Web
+      displayName: Check EF migrations are up to date
+
+    - task: PublishCodeCoverageResults@2
+      displayName: Publish code coverage
+      inputs:
+        summaryFileLocation: '$(Agent.TempDirectory)/coverage/**/coverage.cobertura.xml'
+        failIfCoverageEmpty: false
 
     - task: DotNetCoreCLI@2
       displayName: Pack SmartApp.Telemetry.Client
