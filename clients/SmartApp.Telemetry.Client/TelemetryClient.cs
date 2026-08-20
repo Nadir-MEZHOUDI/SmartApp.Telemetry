@@ -8,6 +8,7 @@ namespace SmartApp.Telemetry.Client;
 
 public sealed class TelemetryClient : ITelemetryClient, IDisposable
 {
+    private static readonly JsonSerializerOptions PayloadOptions = JsonSerializerOptions.Web;
     private static readonly Action<ILogger, Exception?> WorkerCycleFailed =
         LoggerMessage.Define(LogLevel.Debug, new EventId(1, "WorkerCycleFailed"), "Telemetry worker cycle failed.");
 
@@ -52,9 +53,7 @@ public sealed class TelemetryClient : ITelemetryClient, IDisposable
         {
             try
             {
-                var waitForItem = channel.Reader.WaitToReadAsync(cancellationToken).AsTask();
-                var waitForTimer = Task.Delay(options.FlushInterval, cancellationToken);
-                await Task.WhenAny(waitForItem, waitForTimer);
+                await Task.Delay(options.FlushInterval, cancellationToken);
                 await FlushAsync(cancellationToken);
 
                 if (enabled && options.EnableAnalytics &&
@@ -133,7 +132,7 @@ public sealed class TelemetryClient : ITelemetryClient, IDisposable
     public async Task FlushAsync(CancellationToken cancellationToken = default)
     {
         var items = new List<TelemetryEnvelope>(options.MaxBatchSize * 2);
-        while (items.Count < options.MaxBatchSize * 2 && channel.Reader.TryRead(out var envelope))
+        while (channel.Reader.TryRead(out var envelope))
             items.Add(envelope);
         if (items.Count == 0) return;
 
@@ -214,7 +213,7 @@ public sealed class TelemetryClient : ITelemetryClient, IDisposable
     {
         try
         {
-            var json = JsonSerializer.SerializeToElement(payload);
+            var json = JsonSerializer.SerializeToElement(payload, PayloadOptions);
             channel.Writer.TryWrite(new TelemetryEnvelope(kind, json));
         }
         catch (Exception exception)

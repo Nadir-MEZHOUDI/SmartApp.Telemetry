@@ -1,16 +1,19 @@
 # SmartApp.Telemetry.Client
 
-Reusable, non-blocking telemetry SDK for .NET 10 applications such as WPF and WinForms.
+Reusable, non-blocking telemetry SDK for .NET applications such as WPF, WinForms and ASP.NET Core.
+
+- Fire-and-forget: never throws, never blocks the UI thread.
+- Keeps a stable anonymous installation ID locally (no hardware fingerprinting).
+- Batches events, retries briefly, and stores a bounded JSONL queue when the API is offline.
+- Optional global exception hooks for `AppDomain`, `TaskScheduler` and WPF `Dispatcher`.
 
 ## Install
 
 ~~~powershell
-dotnet add package SmartApp.Telemetry.Client --version 4.8.16
+dotnet add package SmartApp.Telemetry.Client
 ~~~
 
-The package is produced locally in D:\Programming\LocalNuget and published to the configured Azure Artifacts feed by the Azure DevOps pipeline.
-
-## Use
+## Use (with dependency injection)
 
 ~~~csharp
 services.AddTelemetry(options =>
@@ -18,7 +21,44 @@ services.AddTelemetry(options =>
     options.Application = "my-app";
     options.Endpoint = "https://telemetry.example.com";
     options.Version = AppVersion.Current;
+    options.EnableAnalytics = true;
+    options.EnableCrashReporting = true;
 });
 ~~~
 
-The client keeps a stable anonymous installation ID, batches events, retries briefly, and stores a bounded JSONL queue when the API is offline.
+Then resolve `ITelemetryClient`:
+
+~~~csharp
+telemetry.TrackAppStarted();
+telemetry.TrackFeatureUsed("ExportPdf");
+
+try
+{
+    // operation
+}
+catch (Exception exception)
+{
+    telemetry.TrackException(exception, new { operation = "ExportPdf" });
+}
+~~~
+
+## Use without dependency injection
+
+For simple WPF/WinForms apps that do not use a DI container:
+
+~~~csharp
+using var telemetry = TelemetryFactory.Create(options => options.Application = "my-app");
+
+telemetry.TrackAppStarted();
+~~~
+
+`TelemetryFactory.Create` starts a background worker automatically. Dispose it (or call
+`FlushAsync`) on app exit to send the remaining queued events.
+
+## Process-wide exception hooks
+
+~~~csharp
+TelemetryExceptionHooks.AttachProcessWide(telemetry);
+~~~
+
+In WPF, also hook `Application.DispatcherUnhandledException` yourself (the SDK does not depend on WPF).

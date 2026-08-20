@@ -2,15 +2,17 @@
   <PropertyGroup>
     <AssemblyName>SmartApp.Telemetry.Client</AssemblyName>
     <RootNamespace>SmartApp.Telemetry.Client</RootNamespace>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <PackageOutputPath>D:\Programming\LocalNuget</PackageOutputPath>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageId>SmartApp.Telemetry.Client</PackageId>
-    <Authors>SmartApp</Authors>
-    <Description>Reusable, failure-tolerant telemetry client for .NET applications.</Description>
-    <PackageTags>telemetry;analytics;dotnet;wpf;winforms;desktop</PackageTags>
+    <Authors>Nadir MEZHOUDI</Authors>
+    <Description>Reusable, failure-tolerant telemetry client for .NET desktop and server applications (WPF, WinForms, ASP.NET Core). Non-blocking, fire-and-forget, with batching and offline persistence.</Description>
+    <PackageTags>telemetry;analytics;dotnet;wpf;winforms;desktop;crash-reporting</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/Nadir-MEZHOUDI/SmartApp.Telemetry</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/Nadir-MEZHOUDI/SmartApp.Telemetry</PackageProjectUrl>
   </PropertyGroup>
   <PropertyGroup>
     <Year>$([System.DateTime]::Now.Year)</Year>
