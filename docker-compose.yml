@@ -15,6 +15,7 @@ services:
       ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
       ConnectionStrings__Telemetry: ${ConnectionStrings__Telemetry:?Set ConnectionStrings__Telemetry in .env}
       Dashboard__AdminKey: ${DASHBOARD_ADMIN_KEY:?Set DASHBOARD_ADMIN_KEY in .env}
+      Dashboard__Password: ${DASHBOARD_PASSWORD:?Set DASHBOARD_PASSWORD in .env}
       TelemetryApi__BaseUrl: http://localhost:8080
     networks:
       - shared-net

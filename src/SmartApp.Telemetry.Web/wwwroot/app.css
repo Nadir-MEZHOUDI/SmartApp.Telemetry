@@ -219,6 +219,16 @@ tbody tr.clickable:hover { background: #f0ede5; }
 .empty-state h1 { margin-top: 14px; }
 .error-message { margin-top: 22px; padding: 12px 14px; color: #7c2e20; border-left: 3px solid var(--coral); background: #f7e4df; font: 12px ui-monospace, monospace; }
 
+.auth-shell { display: grid; min-height: 100vh; place-items: center; padding: 24px; background: var(--paper); }
+.auth-card { width: min(430px, 100%); padding: 34px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); }
+.auth-mark { display: grid; width: 36px; height: 36px; margin-bottom: 28px; place-items: center; color: var(--rail); background: var(--coral); font: 800 21px/1 Georgia, serif; }
+.auth-card h1 { margin: 13px 0 12px; font-size: clamp(38px, 7vw, 54px); }
+.auth-form { display: grid; gap: 9px; margin-top: 28px; }
+.auth-form label { color: var(--muted); font: 700 10px/1 ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.auth-form input { width: 100%; }
+.auth-form .button { margin-top: 8px; }
+.auth-error { margin-top: 20px; padding: 11px 13px; color: #7c2e20; border-left: 3px solid var(--coral); background: #f7e4df; font: 12px ui-monospace, monospace; }
+
 .modal-backdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 14px; background: rgba(21, 23, 27, .55); }
 .modal { width: min(720px, 100%); max-height: calc(100vh - 28px); overflow: auto; padding: 25px; border: 1px solid var(--ink); background: var(--panel); box-shadow: 0 24px 80px rgba(0, 0, 0, .25); }
 .dialog-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
@@ -264,4 +274,3 @@ tbody tr.clickable:hover { background: #f0ede5; }
     .detail-grid { grid-template-columns: 1fr 1fr; }
     .bar-row { grid-template-columns: 92px minmax(30px, 1fr) 38px; gap: 7px; }
 }
-

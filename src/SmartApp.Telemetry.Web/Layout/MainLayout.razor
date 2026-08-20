@@ -50,6 +50,9 @@
                     </select>
                 </div>
                 <button class="button ghost" @onclick="Refresh">Refresh data</button>
+                <form method="post" action="/logout">
+                    <button class="button ghost" type="submit">Sign out</button>
+                </form>
             </div>
         </header>
 
@@ -83,4 +86,3 @@
 
     public void Dispose() => State.Changed -= StateChanged;
 }
-

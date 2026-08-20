@@ -1,0 +1,33 @@
+@page "/login"
+@layout LoginLayout
+
+<PageTitle>Sign in · SmartApp Telemetry</PageTitle>
+
+<div class="auth-mark">S</div>
+<div class="eyebrow">SmartApp / telemetry</div>
+<h1>Private signal, clear view.</h1>
+<p class="lede">Enter the dashboard password to continue to the telemetry workspace.</p>
+
+@if (Error == "invalid")
+{
+    <div class="auth-error" role="alert">That password was not accepted.</div>
+}
+else if (Error == "not-configured")
+{
+    <div class="auth-error" role="alert">Dashboard password is not configured on this server.</div>
+}
+
+<form method="post" action="/login/submit" class="auth-form">
+    <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+    <label for="password">Dashboard password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required autofocus />
+    <button class="button" type="submit">Unlock dashboard</button>
+</form>
+
+@code {
+    [Parameter, SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
+
+    [Parameter, SupplyParameterFromQuery]
+    public string? Error { get; set; }
+}

@@ -27,6 +27,8 @@ dotnet restore Telemetry.sln
 dotnet run --project src/SmartApp.Telemetry.Web
 ~~~
 
+قبل فتح Dashboard اضبط كلمة المرور عبر المتغير `Dashboard__Password` (وفي Docker استخدم `DASHBOARD_PASSWORD` داخل `.env`).
+
 أو شغّل كل شيء:
 
 ~~~powershell
@@ -47,7 +49,7 @@ dotnet pack clients/SmartApp.Telemetry.Client/SmartApp.Telemetry.Client.csproj -
 - API health: http://localhost:8080/health
 - OpenAPI: http://localhost:8080/openapi/v1.json
 
-غيّر كلمات مرور PostgreSQL وDashboard__AdminKey قبل أي نشر عام.
+غيّر كلمات مرور PostgreSQL وDashboard__AdminKey وDashboard__Password قبل أي نشر عام.
 
 ## النشر إلى VPS
 
@@ -138,7 +140,7 @@ exception
 fatal_exception
 ~~~
 
-لا توجد أسرار داخل SDK. حماية Dashboard تتم عبر X-Admin-Key عند ضبط Dashboard__AdminKey. ingestion endpoint عام عمدًا، ولذلك يجب إبقاء rate limiting وCloudflare وNginx مفعّلة.
+لا توجد أسرار داخل SDK. صفحات Dashboard محمية بكلمة مرور Dashboard__Password وتستخدم جلسة Cookie بعد تسجيل الدخول. واجهات Dashboard البرمجية تستمر في استخدام X-Admin-Key عند ضبط Dashboard__AdminKey. ingestion endpoint عام عمدًا، ولذلك يجب إبقاء rate limiting وCloudflare وNginx مفعّلة.
 
 ## قاعدة البيانات
 

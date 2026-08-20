@@ -1,6 +1,10 @@
+using System.Security.Claims;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using SmartApp.Telemetry.Core;
@@ -27,6 +31,7 @@ var connectionString = builder.Configuration.GetConnectionString("Telemetry")
     ?? "Host=localhost;Database=Telemetry;Username=postgres;Password=postgres";
 var telemetryApiBaseUrl = builder.Configuration["TelemetryApi:BaseUrl"] ?? "http://localhost:5000";
 var adminKey = builder.Configuration["Dashboard:AdminKey"] ?? builder.Configuration["TelemetryApi:AdminKey"] ?? string.Empty;
+var dashboardPassword = builder.Configuration["Dashboard:Password"] ?? string.Empty;
 
 if (useInMemory)
     builder.Services.AddDbContext<TelemetryDbContext>(options => options.UseInMemoryDatabase("telemetry-tests"));
@@ -38,6 +43,18 @@ builder.Services.AddScoped<TelemetryDashboardService>();
 builder.Services.AddHostedService<TelemetryMaintenanceService>();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.Cookie.Name = "SmartAppTelemetry.Auth";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Strict;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        options.ExpireTimeSpan = TimeSpan.FromHours(8);
+        options.SlidingExpiration = true;
+        options.LoginPath = "/login";
+    });
+builder.Services.AddAuthorization();
 builder.Services.AddHttpClient<TelemetryApiClient>(client =>
 {
     client.BaseAddress = new Uri(telemetryApiBaseUrl.TrimEnd('/') + "/");
@@ -53,6 +70,12 @@ builder.Services.AddRateLimiter(options =>
     options.AddFixedWindowLimiter("ingestion", limiter =>
     {
         limiter.PermitLimit = 120;
+        limiter.Window = TimeSpan.FromMinutes(1);
+        limiter.QueueLimit = 0;
+    });
+    options.AddFixedWindowLimiter("login", limiter =>
+    {
+        limiter.PermitLimit = 10;
         limiter.Window = TimeSpan.FromMinutes(1);
         limiter.QueueLimit = 0;
     });
@@ -74,6 +97,31 @@ app.UseSerilogRequestLogging();
 app.UseStaticFiles();
 app.UseAntiforgery();
 app.UseRateLimiter();
+app.UseAuthentication();
+
+app.Use(async (context, next) =>
+{
+    if (!IsPublicRequest(context.Request.Path))
+    {
+        if (string.IsNullOrWhiteSpace(dashboardPassword))
+        {
+            await RedirectToLoginAsync(context, "not-configured");
+            return;
+        }
+
+        if (context.User.Identity?.IsAuthenticated != true)
+        {
+            if (AcceptsHtml(context.Request))
+                await RedirectToLoginAsync(context);
+            else
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return;
+        }
+    }
+
+    await next();
+});
+app.UseAuthorization();
 
 app.Use(async (context, next) =>
 {
@@ -264,6 +312,30 @@ app.MapPost("/api/v1/dashboard/errors/{errorId:guid}/resolve", async (
     }
 });
 
+app.MapPost("/login/submit", async (HttpContext context) =>
+{
+    var form = await context.Request.ReadFormAsync();
+    var returnUrl = DashboardAuthentication.SafeReturnUrl(form["returnUrl"].ToString());
+
+    if (!DashboardAuthentication.PasswordMatches(dashboardPassword, form["password"].ToString()))
+        return Results.Redirect(LoginUrl(returnUrl, string.IsNullOrWhiteSpace(dashboardPassword) ? "not-configured" : "invalid"));
+
+    var identity = new ClaimsIdentity(
+        [new Claim(ClaimTypes.Name, "dashboard")],
+        CookieAuthenticationDefaults.AuthenticationScheme);
+    await context.SignInAsync(
+        CookieAuthenticationDefaults.AuthenticationScheme,
+        new ClaimsPrincipal(identity));
+
+    return Results.LocalRedirect(returnUrl);
+}).RequireRateLimiting("login");
+
+app.MapPost("/logout", async (HttpContext context) =>
+{
+    await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    return Results.Redirect("/login");
+});
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
@@ -273,6 +345,40 @@ static string? Country(HttpContext context)
 {
     var value = context.Request.Headers["CF-IPCountry"].FirstOrDefault();
     return string.IsNullOrWhiteSpace(value) || value.Length > 2 ? null : value;
+}
+
+static bool IsPublicRequest(PathString path) =>
+    path.StartsWithSegments("/api") ||
+    path.StartsWithSegments("/health") ||
+    path.StartsWithSegments("/login") ||
+    path.StartsWithSegments("/logout") ||
+    path.StartsWithSegments("/openapi");
+
+static bool AcceptsHtml(HttpRequest request) =>
+    request.Headers.Accept.ToString().Contains("text/html", StringComparison.OrdinalIgnoreCase);
+
+static async Task RedirectToLoginAsync(HttpContext context, string? error = null)
+{
+    if (!AcceptsHtml(context.Request))
+    {
+        context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        await context.Response.WriteAsJsonAsync(new { error = "Dashboard password is not configured." });
+        return;
+    }
+
+    var returnUrl = context.Request.PathBase + context.Request.Path + context.Request.QueryString;
+    context.Response.Redirect(LoginUrl(returnUrl, error));
+}
+
+static string LoginUrl(string? returnUrl, string? error = null)
+{
+    var values = new Dictionary<string, string?>
+    {
+        ["returnUrl"] = DashboardAuthentication.SafeReturnUrl(returnUrl)
+    };
+    if (!string.IsNullOrWhiteSpace(error))
+        values["error"] = error;
+    return QueryHelpers.AddQueryString("/login", values);
 }
 
 public sealed record ResolveErrorRequest(string? Version);
