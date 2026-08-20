@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq.Expressions;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using SmartApp.Telemetry.Core;
@@ -12,15 +13,23 @@ public sealed class TelemetryDashboardService(TelemetryDbContext db)
         var now = DateTime.UtcNow;
         var today = now.Date;
         var apps = await db.Applications.AsNoTracking().OrderBy(x => x.Name).ToListAsync(cancellationToken);
-        var applicationSummaries = new List<ApplicationSummary>();
 
-        foreach (var app in apps)
-            applicationSummaries.Add(await BuildSummaryAsync(app, now, cancellationToken));
+        var stats = await db.Installations.AsNoTracking()
+            .GroupBy(x => x.ApplicationId)
+            .Select(group => new
+            {
+                ApplicationId = group.Key,
+                Total = group.LongCount(),
+                ActiveToday = group.LongCount(x => x.LastSeenAt >= today),
+                Active7 = group.LongCount(x => x.LastSeenAt >= now.AddDays(-7)),
+                Active30 = group.LongCount(x => x.LastSeenAt >= now.AddDays(-30))
+            })
+            .ToDictionaryAsync(x => x.ApplicationId, cancellationToken);
 
-        var totalInstallations = await db.Installations.LongCountAsync(cancellationToken);
-        var activeToday = await db.Installations.LongCountAsync(x => x.LastSeenAt >= today, cancellationToken);
-        var active7 = await db.Installations.LongCountAsync(x => x.LastSeenAt >= now.AddDays(-7), cancellationToken);
-        var active30 = await db.Installations.LongCountAsync(x => x.LastSeenAt >= now.AddDays(-30), cancellationToken);
+        var applicationSummaries = apps.Select(app => stats.TryGetValue(app.Id, out var appStats)
+            ? new ApplicationSummary(app.Id, app.Name, app.Slug, app.IsEnabled, appStats.Total, appStats.ActiveToday, appStats.Active7, appStats.Active30)
+            : new ApplicationSummary(app.Id, app.Name, app.Slug, app.IsEnabled, 0, 0, 0, 0)).ToList();
+
         var eventsToday = await db.TelemetryEvents.LongCountAsync(x => x.OccurredAt >= today, cancellationToken);
         var errorsToday = await db.ErrorOccurrences.LongCountAsync(x => x.OccurredAt >= today, cancellationToken);
         var errorInstallationsToday = await db.ErrorOccurrences
@@ -30,13 +39,13 @@ public sealed class TelemetryDashboardService(TelemetryDbContext db)
             .LongCountAsync(cancellationToken);
 
         return new DashboardOverview(
-            totalInstallations,
-            activeToday,
-            active7,
-            active30,
+            applicationSummaries.Sum(x => x.Installations),
+            applicationSummaries.Sum(x => x.ActiveToday),
+            applicationSummaries.Sum(x => x.Active7Days),
+            applicationSummaries.Sum(x => x.Active30Days),
             eventsToday,
             errorsToday,
-            totalInstallations - errorInstallationsToday,
+            applicationSummaries.Sum(x => x.Installations) - errorInstallationsToday,
             applicationSummaries);
     }
 
@@ -50,28 +59,29 @@ public sealed class TelemetryDashboardService(TelemetryDbContext db)
 
         var now = DateTime.UtcNow;
         var summary = await BuildSummaryAsync(application, now, cancellationToken);
-        var installations = await db.Installations.AsNoTracking()
-            .Where(x => x.ApplicationId == application.Id)
-            .ToListAsync(cancellationToken);
 
-        var activityEvents = await db.TelemetryEvents.AsNoTracking()
+        var activityRows = await db.TelemetryEvents.AsNoTracking()
             .Where(x => x.ApplicationId == application.Id && x.OccurredAt >= now.AddDays(-30))
-            .Select(x => new { x.InstallationId, x.OccurredAt })
-            .ToListAsync(cancellationToken);
-        var activity = activityEvents
             .GroupBy(x => x.OccurredAt.Date)
-            .Select(group => new ChartPoint(group.Key.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), group.Select(x => x.InstallationId).Distinct().LongCount()))
+            .Select(group => new
+            {
+                Date = group.Key,
+                Installations = group.Select(x => x.InstallationId).Distinct().LongCount()
+            })
+            .ToListAsync(cancellationToken);
+        var activity = activityRows
             .OrderBy(x => x.Date)
+            .Select(x => new ChartPoint(x.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), x.Installations))
             .ToList();
 
-        var versions = Count(installations.Select(x => x.CurrentVersion));
-        var countries = Count(installations.Select(x => x.CountryCode));
-        var operatingSystems = Count(installations.Select(x => x.OperatingSystem));
-        var architectures = Count(installations.Select(x => x.Architecture));
-        var languages = Count(installations.Select(x => x.Language));
+        var versions = await CountGroupedAsync(application.Id, x => x.CurrentVersion, cancellationToken);
+        var countries = await CountGroupedAsync(application.Id, x => x.CountryCode, cancellationToken);
+        var operatingSystems = await CountGroupedAsync(application.Id, x => x.OperatingSystem, cancellationToken);
+        var architectures = await CountGroupedAsync(application.Id, x => x.Architecture, cancellationToken);
+        var languages = await CountGroupedAsync(application.Id, x => x.Language, cancellationToken);
 
         var featureEvents = await db.TelemetryEvents.AsNoTracking()
-            .Where(x => x.ApplicationId == application.Id && x.EventName == "feature_used")
+            .Where(x => x.ApplicationId == application.Id && x.EventName == "feature_used" && x.OccurredAt >= now.AddDays(-90))
             .Select(x => x.PropertiesJson)
             .ToListAsync(cancellationToken);
         var features = featureEvents
@@ -267,24 +277,46 @@ public sealed class TelemetryDashboardService(TelemetryDbContext db)
     private async Task<ApplicationSummary> BuildSummaryAsync(Application application, DateTime now, CancellationToken cancellationToken)
     {
         var today = now.Date;
-        var installations = db.Installations.Where(x => x.ApplicationId == application.Id);
+        var stats = await db.Installations.AsNoTracking()
+            .Where(x => x.ApplicationId == application.Id)
+            .GroupBy(_ => 1)
+            .Select(group => new
+            {
+                Total = group.LongCount(),
+                ActiveToday = group.LongCount(x => x.LastSeenAt >= today),
+                Active7 = group.LongCount(x => x.LastSeenAt >= now.AddDays(-7)),
+                Active30 = group.LongCount(x => x.LastSeenAt >= now.AddDays(-30))
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+
         return new ApplicationSummary(
             application.Id,
             application.Name,
             application.Slug,
             application.IsEnabled,
-            await installations.LongCountAsync(cancellationToken),
-            await installations.LongCountAsync(x => x.LastSeenAt >= today, cancellationToken),
-            await installations.LongCountAsync(x => x.LastSeenAt >= now.AddDays(-7), cancellationToken),
-            await installations.LongCountAsync(x => x.LastSeenAt >= now.AddDays(-30), cancellationToken));
+            stats?.Total ?? 0,
+            stats?.ActiveToday ?? 0,
+            stats?.Active7 ?? 0,
+            stats?.Active30 ?? 0);
     }
 
-    private static List<CountItem> Count(IEnumerable<string?> values) =>
-        values.Where(x => !string.IsNullOrWhiteSpace(x))
-            .GroupBy(x => x!, StringComparer.OrdinalIgnoreCase)
-            .Select(group => new CountItem(group.Key, group.LongCount()))
+    private async Task<List<CountItem>> CountGroupedAsync(
+        Guid applicationId,
+        Expression<Func<Installation, string?>> selector,
+        CancellationToken cancellationToken)
+    {
+        var rows = await db.Installations.AsNoTracking()
+            .Where(x => x.ApplicationId == applicationId)
+            .GroupBy(selector)
+            .Select(group => new { Key = group.Key, Count = group.LongCount() })
+            .ToListAsync(cancellationToken);
+        return rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.Key))
+            .GroupBy(x => x.Key!, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new CountItem(group.Key, group.Sum(x => x.Count)))
             .OrderByDescending(x => x.Count)
             .ToList();
+    }
 
     private static string? ReadFeature(string json)
     {

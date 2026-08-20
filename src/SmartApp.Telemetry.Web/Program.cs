@@ -44,6 +44,7 @@ else
 
 builder.Services.AddScoped<TelemetryIngestionService>();
 builder.Services.AddScoped<TelemetryDashboardService>();
+builder.Services.AddScoped<TelemetryAggregationService>();
 builder.Services.AddHostedService<TelemetryMaintenanceService>();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
