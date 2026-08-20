@@ -1,0 +1,24 @@
+name: Publish Client NuGet package
+
+on:
+  push:
+    tags:
+      - 'client-v*'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: Pack and push to nuget.org
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Pack
+        run: dotnet pack clients/SmartApp.Telemetry.Client/SmartApp.Telemetry.Client.csproj --configuration Release --output ./nupkg
+
+      - name: Push to nuget.org
+        run: dotnet nuget push "./nupkg/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
