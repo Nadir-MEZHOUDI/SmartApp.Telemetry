@@ -182,6 +182,7 @@ public sealed class TelemetryWebFactory : WebApplicationFactory<Program>
                 ["UseInMemoryDatabase"] = "true",
                 ["Dashboard:Password"] = "test-password",
                 ["Dashboard:AdminKey"] = "test-admin-key",
+                ["Security:SecureCookies"] = "false",
                 ["Telemetry:IngestionRateLimitPerMinute"] = "3",
                 ["Telemetry:LoginRateLimitPerMinute"] = "100",
                 ["Telemetry:MaintenanceInitialDelaySeconds"] = "3600",

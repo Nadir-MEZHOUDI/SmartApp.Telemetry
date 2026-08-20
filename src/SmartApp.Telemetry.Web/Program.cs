@@ -31,6 +31,8 @@ var connectionString = builder.Configuration.GetConnectionString("Telemetry")
     ?? "Host=localhost;Database=Telemetry;Username=postgres;Password=postgres";
 var adminKey = builder.Configuration["Dashboard:AdminKey"] ?? builder.Configuration["TelemetryApi:AdminKey"] ?? string.Empty;
 var dashboardPassword = builder.Configuration["Dashboard:Password"] ?? string.Empty;
+var exposeOpenApi = builder.Environment.IsDevelopment() || builder.Configuration.GetValue("Api:ExposeOpenApi", false);
+var secureCookies = builder.Configuration.GetValue("Security:SecureCookies", !builder.Environment.IsDevelopment());
 
 if (useInMemory)
     builder.Services.AddDbContext<TelemetryDbContext>(options => options.UseInMemoryDatabase("telemetry-tests"));
@@ -49,7 +51,9 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Cookie.Name = "SmartAppTelemetry.Auth";
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Strict;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        options.Cookie.SecurePolicy = secureCookies
+            ? CookieSecurePolicy.Always
+            : CookieSecurePolicy.SameAsRequest;
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
         options.SlidingExpiration = true;
         options.LoginPath = "/login";
@@ -105,13 +109,23 @@ using (var scope = app.Services.CreateScope())
 
 app.UseSerilogRequestLogging();
 app.UseStaticFiles();
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "no-referrer";
+    context.Response.Headers["Content-Security-Policy"] =
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+        "img-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'self'";
+    await next();
+});
 app.UseAntiforgery();
 app.UseRateLimiter();
 app.UseAuthentication();
 
 app.Use(async (context, next) =>
 {
-    if (!IsPublicRequest(context.Request.Path))
+    if (!IsPublicRequest(context.Request.Path, exposeOpenApi))
     {
         if (string.IsNullOrWhiteSpace(dashboardPassword))
         {
@@ -146,9 +160,10 @@ app.Use(async (context, next) =>
     await next();
 });
 
-app.MapOpenApi();
 app.MapHealthChecks("/health");
 app.MapHealthChecks("/health/ready");
+if (exposeOpenApi)
+    app.MapOpenApi();
 
 app.MapApiEndpoints(dashboardPassword);
 
@@ -162,12 +177,12 @@ static string ClientKey(HttpContext context) =>
     ?? context.Connection.RemoteIpAddress?.ToString()
     ?? "unknown";
 
-static bool IsPublicRequest(PathString path) =>
+static bool IsPublicRequest(PathString path, bool exposeOpenApi) =>
     path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase) ||
     path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase) ||
     path.StartsWithSegments("/login", StringComparison.OrdinalIgnoreCase) ||
     path.StartsWithSegments("/logout", StringComparison.OrdinalIgnoreCase) ||
-    path.StartsWithSegments("/openapi", StringComparison.OrdinalIgnoreCase);
+    (exposeOpenApi && path.StartsWithSegments("/openapi", StringComparison.OrdinalIgnoreCase));
 
 static bool AcceptsHtml(HttpRequest request) =>
     request.Headers.Accept.ToString().Contains("text/html", StringComparison.OrdinalIgnoreCase);
