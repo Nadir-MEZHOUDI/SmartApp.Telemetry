@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using SmartApp.Telemetry.Core;
@@ -41,8 +42,9 @@ public sealed class TelemetryDashboardService(TelemetryDbContext db)
 
     public async Task<DashboardApplication?> GetApplicationAsync(string slug, CancellationToken cancellationToken)
     {
+        var normalizedSlug = slug.Trim().ToLowerInvariant();
         var application = await db.Applications.AsNoTracking().SingleOrDefaultAsync(
-            x => x.Slug == slug.Trim().ToLowerInvariant(),
+            x => x.Slug == normalizedSlug,
             cancellationToken);
         if (application is null) return null;
 
@@ -58,7 +60,7 @@ public sealed class TelemetryDashboardService(TelemetryDbContext db)
             .ToListAsync(cancellationToken);
         var activity = activityEvents
             .GroupBy(x => x.OccurredAt.Date)
-            .Select(group => new ChartPoint(group.Key.ToString("yyyy-MM-dd"), group.Select(x => x.InstallationId).Distinct().LongCount()))
+            .Select(group => new ChartPoint(group.Key.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), group.Select(x => x.InstallationId).Distinct().LongCount()))
             .OrderBy(x => x.Date)
             .ToList();
 
@@ -93,9 +95,10 @@ public sealed class TelemetryDashboardService(TelemetryDbContext db)
 
     public async Task<ErrorDetails?> GetErrorAsync(string slug, Guid errorId, CancellationToken cancellationToken)
     {
+        var normalizedSlug = slug.Trim().ToLowerInvariant();
         var group = await db.ErrorGroups.AsNoTracking()
             .Join(db.Applications, error => error.ApplicationId, app => app.Id, (error, app) => new { error, app.Slug })
-            .Where(x => x.Slug == slug.Trim().ToLowerInvariant() && x.error.Id == errorId)
+            .Where(x => x.Slug == normalizedSlug && x.error.Id == errorId)
             .Select(x => x.error)
             .SingleOrDefaultAsync(cancellationToken);
         if (group is null) return null;
@@ -143,7 +146,10 @@ public sealed class TelemetryDashboardService(TelemetryDbContext db)
                 (error, application) => new { Error = error, Application = application });
 
         if (!string.IsNullOrWhiteSpace(applicationSlug))
-            query = query.Where(x => x.Application.Slug == applicationSlug.Trim().ToLowerInvariant());
+        {
+            var normalizedSlug = applicationSlug.Trim().ToLowerInvariant();
+            query = query.Where(x => x.Application.Slug == normalizedSlug);
+        }
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
@@ -216,11 +222,17 @@ public sealed class TelemetryDashboardService(TelemetryDbContext db)
                 (installation, application) => new { Installation = installation, Application = application });
 
         if (!string.IsNullOrWhiteSpace(applicationSlug))
-            query = query.Where(x => x.Application.Slug == applicationSlug.Trim().ToLowerInvariant());
+        {
+            var normalizedSlug = applicationSlug.Trim().ToLowerInvariant();
+            query = query.Where(x => x.Application.Slug == normalizedSlug);
+        }
         if (!string.IsNullOrWhiteSpace(version))
             query = query.Where(x => x.Installation.CurrentVersion == version.Trim());
         if (!string.IsNullOrWhiteSpace(country))
-            query = query.Where(x => x.Installation.CountryCode == country.Trim().ToUpperInvariant());
+        {
+            var normalizedCountry = country.Trim().ToUpperInvariant();
+            query = query.Where(x => x.Installation.CountryCode == normalizedCountry);
+        }
         if (!string.IsNullOrWhiteSpace(operatingSystem))
             query = query.Where(x => x.Installation.OperatingSystem == operatingSystem.Trim());
         if (!string.IsNullOrWhiteSpace(architecture))

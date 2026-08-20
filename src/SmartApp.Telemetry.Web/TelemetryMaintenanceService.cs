@@ -9,6 +9,9 @@ public sealed class TelemetryMaintenanceService(
     IConfiguration configuration,
     ILogger<TelemetryMaintenanceService> logger) : BackgroundService
 {
+    private static readonly Action<ILogger, Exception?> MaintenanceFailed =
+        LoggerMessage.Define(LogLevel.Error, new EventId(1, "MaintenanceFailed"), "Telemetry maintenance failed.");
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var intervalHours = Math.Max(1, configuration.GetValue("Telemetry:MaintenanceIntervalHours", 24));
@@ -20,7 +23,7 @@ public sealed class TelemetryMaintenanceService(
             }
             catch (Exception exception)
             {
-                logger.LogError(exception, "Telemetry maintenance failed.");
+                MaintenanceFailed(logger, exception);
             }
 
             await Task.Delay(TimeSpan.FromHours(intervalHours), stoppingToken);
@@ -52,8 +55,8 @@ public sealed class TelemetryMaintenanceService(
             daily.ActiveInstallations = events.Select(x => x.InstallationId).Distinct().LongCount();
             daily.NewInstallations = await db.Installations.LongCountAsync(
                 x => x.ApplicationId == application.Id && x.FirstSeenAt >= start && x.FirstSeenAt < end, cancellationToken);
-            daily.TotalEvents = events.LongCount();
-            daily.TotalErrors = errors.LongCount();
+            daily.TotalEvents = events.Count;
+            daily.TotalErrors = errors.Count;
             if (db.Entry(daily).State == EntityState.Detached) db.DailyApplicationStats.Add(daily);
 
             var existingEventStats = await db.DailyEventStats

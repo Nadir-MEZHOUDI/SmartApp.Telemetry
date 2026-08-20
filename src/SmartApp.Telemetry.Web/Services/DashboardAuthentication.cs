@@ -17,7 +17,7 @@ public static class DashboardAuthentication
 
     public static string SafeReturnUrl(string? returnUrl) =>
         !string.IsNullOrWhiteSpace(returnUrl) &&
-        returnUrl.StartsWith("/", StringComparison.Ordinal) &&
+        returnUrl.StartsWith('/') &&
         !returnUrl.StartsWith("//", StringComparison.Ordinal)
             ? returnUrl
             : "/";

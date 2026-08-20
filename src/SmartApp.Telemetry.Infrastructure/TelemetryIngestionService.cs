@@ -91,7 +91,6 @@ public sealed class TelemetryIngestionService(TelemetryDbContext db)
                         FirstSeenVersion = Limit(request.Context?.AppVersion, 50)
                     };
                 groups[key] = group;
-                if (group.Id == Guid.Empty) group.Id = Guid.NewGuid();
                 if (db.Entry(group).State == EntityState.Detached) db.ErrorGroups.Add(group);
             }
 

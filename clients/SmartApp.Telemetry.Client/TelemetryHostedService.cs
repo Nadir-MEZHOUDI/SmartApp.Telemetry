@@ -2,7 +2,7 @@ using Microsoft.Extensions.Hosting;
 
 namespace SmartApp.Telemetry.Client;
 
-internal sealed class TelemetryHostedService(TelemetryClient client) : IHostedService
+internal sealed class TelemetryHostedService(TelemetryClient client) : IHostedService, IDisposable
 {
     private CancellationTokenSource? cancellation;
     private Task? worker;
@@ -26,4 +26,6 @@ internal sealed class TelemetryHostedService(TelemetryClient client) : IHostedSe
         await client.FlushAsync(cancellationToken);
         cancellation.Dispose();
     }
+
+    public void Dispose() => client.Dispose();
 }

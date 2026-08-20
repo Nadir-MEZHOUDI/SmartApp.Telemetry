@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -30,7 +31,7 @@ public sealed class TelemetryApiClient
             ("version", filters.Version),
             ("from", filters.From),
             ("to", filters.To),
-            ("page", page.ToString()),
+            ("page", page.ToString(CultureInfo.InvariantCulture)),
             ("pageSize", "25"));
         return GetAsync<DashboardErrorPage>($"api/v1/dashboard/errors{query}", cancellationToken);
     }
@@ -44,8 +45,8 @@ public sealed class TelemetryApiClient
             ("operatingSystem", filters.OperatingSystem),
             ("architecture", filters.Architecture),
             ("language", filters.Language),
-            ("activeWithinDays", filters.ActiveWithinDays > 0 ? filters.ActiveWithinDays.ToString() : string.Empty),
-            ("page", page.ToString()),
+            ("activeWithinDays", filters.ActiveWithinDays > 0 ? filters.ActiveWithinDays.ToString(CultureInfo.InvariantCulture) : string.Empty),
+            ("page", page.ToString(CultureInfo.InvariantCulture)),
             ("pageSize", "25"));
         return GetAsync<DashboardInstallationPage>($"api/v1/dashboard/installations{query}", cancellationToken);
     }

@@ -1,4 +1,7 @@
+using System.Globalization;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -17,7 +20,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog((context, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration)
     .Enrich.FromLogContext()
-    .WriteTo.Console());
+    .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture));
 
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 256 * 1024);
 builder.Services.Configure<JsonOptions>(options =>
@@ -125,9 +128,9 @@ app.UseAuthorization();
 
 app.Use(async (context, next) =>
 {
-    if (context.Request.Path.StartsWithSegments("/api/v1/dashboard") &&
+    if (context.Request.Path.StartsWithSegments("/api/v1/dashboard", StringComparison.OrdinalIgnoreCase) &&
         !string.IsNullOrWhiteSpace(adminKey) &&
-        !string.Equals(context.Request.Headers["X-Admin-Key"].ToString(), adminKey, StringComparison.Ordinal))
+        !FixedTimeEquals(adminKey, context.Request.Headers["X-Admin-Key"].ToString()))
     {
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
         await context.Response.WriteAsJsonAsync(new { error = "Dashboard authentication required." });
@@ -348,11 +351,11 @@ static string? Country(HttpContext context)
 }
 
 static bool IsPublicRequest(PathString path) =>
-    path.StartsWithSegments("/api") ||
-    path.StartsWithSegments("/health") ||
-    path.StartsWithSegments("/login") ||
-    path.StartsWithSegments("/logout") ||
-    path.StartsWithSegments("/openapi");
+    path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase) ||
+    path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase) ||
+    path.StartsWithSegments("/login", StringComparison.OrdinalIgnoreCase) ||
+    path.StartsWithSegments("/logout", StringComparison.OrdinalIgnoreCase) ||
+    path.StartsWithSegments("/openapi", StringComparison.OrdinalIgnoreCase);
 
 static bool AcceptsHtml(HttpRequest request) =>
     request.Headers.Accept.ToString().Contains("text/html", StringComparison.OrdinalIgnoreCase);
@@ -381,6 +384,16 @@ static string LoginUrl(string? returnUrl, string? error = null)
     return QueryHelpers.AddQueryString("/login", values);
 }
 
-public sealed record ResolveErrorRequest(string? Version);
+static bool FixedTimeEquals(string configured, string supplied)
+{
+    var configuredHash = SHA256.HashData(Encoding.UTF8.GetBytes(configured));
+    var suppliedHash = SHA256.HashData(Encoding.UTF8.GetBytes(supplied));
+    return CryptographicOperations.FixedTimeEquals(configuredHash, suppliedHash);
+}
 
-public partial class Program;
+namespace SmartApp.Telemetry.Web
+{
+    public sealed record ResolveErrorRequest(string? Version);
+
+    public partial class Program;
+}

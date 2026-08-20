@@ -21,9 +21,9 @@ public sealed class TelemetryRulesTests
     {
         var result = TelemetryRules.Sanitise("Host=localhost;Password=secret; token=abc123");
 
-        Assert.DoesNotContain("secret", result);
-        Assert.DoesNotContain("abc123", result);
-        Assert.Contains("[REDACTED]", result);
+        Assert.DoesNotContain("secret", result, StringComparison.Ordinal);
+        Assert.DoesNotContain("abc123", result, StringComparison.Ordinal);
+        Assert.Contains("[REDACTED]", result, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -73,6 +73,6 @@ public sealed class TelemetryRulesTests
         Assert.Single(db.ErrorGroups);
         Assert.Equal(2, db.ErrorGroups.Single().TotalOccurrences);
         Assert.Equal(2, db.ErrorGroups.Single().AffectedInstallations);
-        Assert.All(db.ErrorOccurrences, occurrence => Assert.DoesNotContain("Password=", occurrence.Message));
+        Assert.All(db.ErrorOccurrences, occurrence => Assert.DoesNotContain("Password=", occurrence.Message, StringComparison.Ordinal));
     }
 }

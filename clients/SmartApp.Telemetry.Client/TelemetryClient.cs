@@ -6,8 +6,14 @@ using Microsoft.Extensions.Logging;
 
 namespace SmartApp.Telemetry.Client;
 
-public sealed class TelemetryClient : ITelemetryClient
+public sealed class TelemetryClient : ITelemetryClient, IDisposable
 {
+    private static readonly Action<ILogger, Exception?> WorkerCycleFailed =
+        LoggerMessage.Define(LogLevel.Debug, new EventId(1, "WorkerCycleFailed"), "Telemetry worker cycle failed.");
+
+    private static readonly Action<ILogger, Exception?> PayloadSerializationFailed =
+        LoggerMessage.Define(LogLevel.Debug, new EventId(2, "PayloadSerializationFailed"), "Telemetry payload could not be serialized.");
+
     private readonly TelemetryOptions options;
     private readonly HttpClient httpClient;
     private readonly InstallationStore installationStore;
@@ -53,7 +59,7 @@ public sealed class TelemetryClient : ITelemetryClient
             }
             catch (Exception exception)
             {
-                logger.LogDebug(exception, "Telemetry worker cycle failed.");
+                WorkerCycleFailed(logger, exception);
             }
         }
     }
@@ -130,7 +136,7 @@ public sealed class TelemetryClient : ITelemetryClient
         }
     }
 
-    public void SetEnabled(bool value) => enabled = value;
+    public void SetEnabled(bool enabled) => this.enabled = enabled;
 
     private async Task<bool> SendBatchAsync(string kind, IReadOnlyCollection<TelemetryEnvelope> batch, CancellationToken cancellationToken)
     {
@@ -169,9 +175,11 @@ public sealed class TelemetryClient : ITelemetryClient
         }
         catch (Exception exception)
         {
-            logger.LogDebug(exception, "Telemetry payload could not be serialized.");
+            PayloadSerializationFailed(logger, exception);
         }
     }
+
+    public void Dispose() => localQueue.Dispose();
 
     private TelemetryContext Context() => new(
         options.Version,

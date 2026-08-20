@@ -5,7 +5,7 @@ namespace SmartApp.Telemetry.Client;
 
 internal sealed record TelemetryEnvelope(string Kind, JsonElement Payload);
 
-internal sealed class LocalQueueStore
+internal sealed class LocalQueueStore : IDisposable
 {
     private readonly string filePath;
     private readonly int maxBytes;
@@ -92,4 +92,6 @@ internal sealed class LocalQueueStore
         var invalid = Path.GetInvalidFileNameChars();
         return string.Concat(value.Select(character => invalid.Contains(character) ? '_' : character));
     }
+
+    public void Dispose() => gate.Dispose();
 }
