@@ -70,6 +70,8 @@ builder.Services.AddHealthChecks().AddDbContextCheck<TelemetryDbContext>();
 builder.Services.AddOpenApi();
 builder.Services.AddRateLimiter(options =>
 {
+    var ingestionLimit = Math.Max(1, builder.Configuration.GetValue("Telemetry:IngestionRateLimitPerMinute", 120));
+    var loginLimit = Math.Max(1, builder.Configuration.GetValue("Telemetry:LoginRateLimitPerMinute", 10));
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.OnRejected = async (context, cancellationToken) =>
     {
@@ -86,13 +88,13 @@ builder.Services.AddRateLimiter(options =>
             ClientKey(context),
             _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 120,
+                PermitLimit = ingestionLimit,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
     options.AddFixedWindowLimiter("login", limiter =>
     {
-        limiter.PermitLimit = 10;
+        limiter.PermitLimit = loginLimit;
         limiter.Window = TimeSpan.FromMinutes(1);
         limiter.QueueLimit = 0;
     });
@@ -331,6 +333,10 @@ app.MapPost("/api/v1/dashboard/errors/{errorId:guid}/resolve", async (
 
 app.MapPost("/login/submit", async (HttpContext context) =>
 {
+    var antiforgeryFeature = context.Features.Get<IAntiforgeryValidationFeature>();
+    if (antiforgeryFeature is not { IsValid: true })
+        return Results.BadRequest(new { error = "Antiforgery token is missing or invalid." });
+
     var form = await context.Request.ReadFormAsync();
     var returnUrl = DashboardAuthentication.SafeReturnUrl(form["returnUrl"].ToString());
 

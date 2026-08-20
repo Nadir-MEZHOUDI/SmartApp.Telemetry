@@ -138,18 +138,31 @@ public sealed class TelemetryIngestionService(TelemetryDbContext db)
                 .ToListAsync(cancellationToken);
             var newInstallations = batchInstallations.Count(x => !alreadySeen.Contains(x));
 
-            await db.ErrorGroups
-                .Where(x => x.Id == existing.Id)
-                .ExecuteUpdateAsync(setters => setters
-                    .SetProperty(x => x.IsRegressed, x => x.IsRegressed || x.IsResolved)
-                    .SetProperty(x => x.TotalOccurrences, x => x.TotalOccurrences + bucket.Occurrences.Count)
-                    .SetProperty(x => x.AffectedInstallations, x => x.AffectedInstallations + newInstallations)
-                    .SetProperty(x => x.LastSeenAt, x => bucket.SeenAt > x.LastSeenAt ? bucket.SeenAt : x.LastSeenAt)
-                    .SetProperty(x => x.LastSeenVersion, bucket.LastSeenVersion),
-                cancellationToken);
-            await db.ErrorGroups
-                .Where(x => x.Id == existing.Id)
-                .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.IsResolved, false), cancellationToken);
+            if (!db.Database.IsRelational())
+            {
+                var tracked = await db.ErrorGroups.SingleAsync(x => x.Id == existing.Id, cancellationToken);
+                tracked.IsRegressed = tracked.IsRegressed || tracked.IsResolved;
+                tracked.TotalOccurrences += bucket.Occurrences.Count;
+                tracked.AffectedInstallations += newInstallations;
+                tracked.LastSeenAt = bucket.SeenAt > tracked.LastSeenAt ? bucket.SeenAt : tracked.LastSeenAt;
+                tracked.LastSeenVersion = bucket.LastSeenVersion;
+                tracked.IsResolved = false;
+            }
+            else
+            {
+                await db.ErrorGroups
+                    .Where(x => x.Id == existing.Id)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(x => x.IsRegressed, x => x.IsRegressed || x.IsResolved)
+                        .SetProperty(x => x.TotalOccurrences, x => x.TotalOccurrences + bucket.Occurrences.Count)
+                        .SetProperty(x => x.AffectedInstallations, x => x.AffectedInstallations + newInstallations)
+                        .SetProperty(x => x.LastSeenAt, x => bucket.SeenAt > x.LastSeenAt ? bucket.SeenAt : x.LastSeenAt)
+                        .SetProperty(x => x.LastSeenVersion, bucket.LastSeenVersion),
+                    cancellationToken);
+                await db.ErrorGroups
+                    .Where(x => x.Id == existing.Id)
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.IsResolved, false), cancellationToken);
+            }
 
             foreach (var occurrence in bucket.Occurrences)
                 occurrence.ErrorGroupId = existing.Id;

@@ -7,6 +7,7 @@
     <ProjectReference Include="..\..\src\SmartApp.Telemetry.Web\SmartApp.Telemetry.Web.csproj" />
     <ProjectReference Include="..\..\src\SmartApp.Telemetry.Infrastructure\SmartApp.Telemetry.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\SmartApp.Telemetry.Core\SmartApp.Telemetry.Core.csproj" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.11" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.11" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
