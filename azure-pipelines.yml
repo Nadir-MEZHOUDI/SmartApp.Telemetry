@@ -8,6 +8,7 @@ variables:
   clientProject: 'clients/SmartApp.Telemetry.Client/SmartApp.Telemetry.Client.csproj'
   clientTestProject: 'tests/SmartApp.Telemetry.Client.Tests/SmartApp.Telemetry.Client.Tests.csproj'
   buildConfiguration: 'Release'
+  nugetServiceConnection: 'nuget-org'
 
 steps:
 - task: DotNetCoreCLI@2
@@ -48,6 +49,15 @@ steps:
     publishVstsFeed: '1ed0d063-2001-4386-82a2-66c01ee046b2'
     allowPackageConflicts: true
     publishPackageMetadata: false
+
+- task: DotNetCoreCLI@2
+  displayName: push to nuget.org
+  inputs:
+    command: push
+    packagesToPush: '$(Build.ArtifactStagingDirectory)/*.nupkg'
+    nuGetFeedType: external
+    publishFeedCredentials: '$(nugetServiceConnection)'
+    allowPackageConflicts: true
 
 - task: PublishBuildArtifacts@1
   displayName: publish NuGet artifact
