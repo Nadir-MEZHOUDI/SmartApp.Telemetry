@@ -62,8 +62,7 @@ public sealed class TelemetryIngestionService(TelemetryDbContext db)
         if (applications.Count != requests.Select(x => x.Application).Distinct(StringComparer.OrdinalIgnoreCase).Count())
             return (false, "One or more applications are unknown or disabled.");
 
-        var groups = new Dictionary<(Guid AppId, string Fingerprint), ErrorGroup>();
-        var countedInstallations = new HashSet<(Guid GroupId, Guid InstallationId)>();
+        var buckets = new Dictionary<(Guid AppId, string Fingerprint), ErrorBucket>();
 
         foreach (var request in requests)
         {
@@ -76,40 +75,18 @@ public sealed class TelemetryIngestionService(TelemetryDbContext db)
             var fingerprint = TelemetryRules.Fingerprint(request.ExceptionType, stackTrace);
             var key = (application.Id, fingerprint);
 
-            if (!groups.TryGetValue(key, out var group))
+            if (!buckets.TryGetValue(key, out var bucket))
             {
-                group = await db.ErrorGroups.SingleOrDefaultAsync(
-                    x => x.ApplicationId == application.Id && x.Fingerprint == fingerprint,
-                    cancellationToken) ?? new ErrorGroup
-                    {
-                        Id = Guid.NewGuid(),
-                        ApplicationId = application.Id,
-                        Fingerprint = fingerprint,
-                        ExceptionType = Limit(request.ExceptionType, 300) ?? "Exception",
-                        Title = BuildTitle(request.ExceptionType, message),
-                        FirstSeenAt = occurredAt,
-                        FirstSeenVersion = Limit(request.Context?.AppVersion, 50)
-                    };
-                groups[key] = group;
-                if (db.Entry(group).State == EntityState.Detached) db.ErrorGroups.Add(group);
+                bucket = new ErrorBucket(
+                    request.ExceptionType,
+                    message,
+                    Limit(request.Context?.AppVersion, 50));
+                buckets[key] = bucket;
             }
 
-            var wasResolved = group.IsResolved;
-            group.LastSeenAt = occurredAt > group.LastSeenAt ? occurredAt : group.LastSeenAt;
-            group.LastSeenVersion = Limit(request.Context?.AppVersion, 50);
-            group.TotalOccurrences++;
-            group.IsResolved = false;
-            group.IsRegressed = wasResolved || group.IsRegressed;
-
-            var installationWasSeen = await db.ErrorOccurrences.AnyAsync(
-                x => x.ErrorGroupId == group.Id && x.InstallationId == request.InstallationId,
-                cancellationToken);
-            if (!installationWasSeen && countedInstallations.Add((group.Id, request.InstallationId)))
-                group.AffectedInstallations++;
-
-            db.ErrorOccurrences.Add(new ErrorOccurrence
+            bucket.Occurrences.Add(new ErrorOccurrence
             {
-                ErrorGroupId = group.Id,
+                ErrorGroupId = Guid.Empty,
                 ApplicationId = application.Id,
                 InstallationId = request.InstallationId,
                 AppVersion = Limit(request.Context?.AppVersion, 50),
@@ -119,10 +96,84 @@ public sealed class TelemetryIngestionService(TelemetryDbContext db)
                 ContextJson = JsonSerializer.Serialize(new { request.Context, request.AdditionalContext }),
                 OccurredAt = occurredAt
             });
+            bucket.SeenAt = occurredAt > bucket.SeenAt ? occurredAt : bucket.SeenAt;
+            bucket.FirstSeenAt = occurredAt < bucket.FirstSeenAt ? occurredAt : bucket.FirstSeenAt;
+            bucket.LastSeenVersion = Limit(request.Context?.AppVersion, 50);
         }
+
+        foreach (var ((applicationId, fingerprint), bucket) in buckets)
+        {
+            var existing = await db.ErrorGroups.AsNoTracking().SingleOrDefaultAsync(
+                x => x.ApplicationId == applicationId && x.Fingerprint == fingerprint,
+                cancellationToken);
+
+            var batchInstallations = bucket.Occurrences.Select(x => x.InstallationId).Distinct().ToArray();
+            if (existing is null)
+            {
+                var group = new ErrorGroup
+                {
+                    Id = Guid.NewGuid(),
+                    ApplicationId = applicationId,
+                    Fingerprint = fingerprint,
+                    ExceptionType = bucket.ExceptionType,
+                    Title = BuildTitle(bucket.ExceptionType, bucket.FirstMessage),
+                    FirstSeenAt = bucket.FirstSeenAt,
+                    FirstSeenVersion = bucket.FirstSeenVersion,
+                    LastSeenAt = bucket.SeenAt,
+                    LastSeenVersion = bucket.LastSeenVersion,
+                    TotalOccurrences = bucket.Occurrences.Count,
+                    AffectedInstallations = batchInstallations.Length,
+                    IsResolved = false,
+                    IsRegressed = false
+                };
+                db.ErrorGroups.Add(group);
+                foreach (var occurrence in bucket.Occurrences)
+                    occurrence.ErrorGroupId = group.Id;
+                continue;
+            }
+
+            var alreadySeen = await db.ErrorOccurrences.AsNoTracking()
+                .Where(x => x.ErrorGroupId == existing.Id && batchInstallations.Contains(x.InstallationId))
+                .Select(x => x.InstallationId)
+                .ToListAsync(cancellationToken);
+            var newInstallations = batchInstallations.Count(x => !alreadySeen.Contains(x));
+
+            await db.ErrorGroups
+                .Where(x => x.Id == existing.Id)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(x => x.IsRegressed, x => x.IsRegressed || x.IsResolved)
+                    .SetProperty(x => x.TotalOccurrences, x => x.TotalOccurrences + bucket.Occurrences.Count)
+                    .SetProperty(x => x.AffectedInstallations, x => x.AffectedInstallations + newInstallations)
+                    .SetProperty(x => x.LastSeenAt, x => bucket.SeenAt > x.LastSeenAt ? bucket.SeenAt : x.LastSeenAt)
+                    .SetProperty(x => x.LastSeenVersion, bucket.LastSeenVersion),
+                cancellationToken);
+            await db.ErrorGroups
+                .Where(x => x.Id == existing.Id)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.IsResolved, false), cancellationToken);
+
+            foreach (var occurrence in bucket.Occurrences)
+                occurrence.ErrorGroupId = existing.Id;
+        }
+
+        foreach (var bucket in buckets.Values)
+            db.ErrorOccurrences.AddRange(bucket.Occurrences);
 
         await db.SaveChangesAsync(cancellationToken);
         return (true, null);
+    }
+
+    private sealed class ErrorBucket(
+        string exceptionType,
+        string firstMessage,
+        string? firstSeenVersion)
+    {
+        public string ExceptionType { get; } = Limit(exceptionType, 300) ?? "Exception";
+        public string FirstMessage { get; } = firstMessage;
+        public string? FirstSeenVersion { get; } = firstSeenVersion;
+        public List<ErrorOccurrence> Occurrences { get; } = [];
+        public DateTime SeenAt { get; set; } = DateTime.MinValue;
+        public DateTime FirstSeenAt { get; set; } = DateTime.MaxValue;
+        public string? LastSeenVersion { get; set; }
     }
 
     public async Task<(bool Accepted, string? Error)> HeartbeatAsync(

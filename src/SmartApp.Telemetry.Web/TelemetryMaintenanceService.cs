@@ -15,6 +15,16 @@ public sealed class TelemetryMaintenanceService(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var intervalHours = Math.Max(1, configuration.GetValue("Telemetry:MaintenanceIntervalHours", 24));
+        var initialDelaySeconds = Math.Max(0, configuration.GetValue("Telemetry:MaintenanceInitialDelaySeconds", 30));
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(initialDelaySeconds), stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            return;
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -26,7 +36,14 @@ public sealed class TelemetryMaintenanceService(
                 MaintenanceFailed(logger, exception);
             }
 
-            await Task.Delay(TimeSpan.FromHours(intervalHours), stoppingToken);
+            try
+            {
+                await Task.Delay(TimeSpan.FromHours(intervalHours), stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
         }
     }
 

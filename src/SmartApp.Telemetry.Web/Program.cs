@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http.Json;
@@ -70,12 +71,25 @@ builder.Services.AddOpenApi();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddFixedWindowLimiter("ingestion", limiter =>
+    options.OnRejected = async (context, cancellationToken) =>
     {
-        limiter.PermitLimit = 120;
-        limiter.Window = TimeSpan.FromMinutes(1);
-        limiter.QueueLimit = 0;
-    });
+        var logger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("RateLimiting");
+        RateLimitLog.Rejected(logger, context.HttpContext.Request.Path.ToString(), ClientKey(context.HttpContext));
+        if (!context.HttpContext.Response.HasStarted)
+            await context.HttpContext.Response.WriteAsJsonAsync(
+                new { error = "Too many requests. Please retry shortly." },
+                cancellationToken);
+    };
+    options.AddPolicy("ingestion", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            ClientKey(context),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
     options.AddFixedWindowLimiter("login", limiter =>
     {
         limiter.PermitLimit = 10;
@@ -331,7 +345,7 @@ app.MapPost("/login/submit", async (HttpContext context) =>
         new ClaimsPrincipal(identity));
 
     return Results.LocalRedirect(returnUrl);
-}).RequireRateLimiting("login");
+}).WithMetadata(new RequireAntiforgeryTokenAttribute()).RequireRateLimiting("login");
 
 app.MapPost("/logout", async (HttpContext context) =>
 {
@@ -349,6 +363,11 @@ static string? Country(HttpContext context)
     var value = context.Request.Headers["CF-IPCountry"].FirstOrDefault();
     return string.IsNullOrWhiteSpace(value) || value.Length > 2 ? null : value;
 }
+
+static string ClientKey(HttpContext context) =>
+    context.Request.Headers["CF-Connecting-IP"].FirstOrDefault()
+    ?? context.Connection.RemoteIpAddress?.ToString()
+    ?? "unknown";
 
 static bool IsPublicRequest(PathString path) =>
     path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase) ||
@@ -396,4 +415,16 @@ namespace SmartApp.Telemetry.Web
     public sealed record ResolveErrorRequest(string? Version);
 
     public partial class Program;
+
+    internal static class RateLimitLog
+    {
+        private static readonly Action<Microsoft.Extensions.Logging.ILogger, string, string, Exception?> RejectedMessage =
+            LoggerMessage.Define<string, string>(
+                LogLevel.Warning,
+                new EventId(1, "RateLimitRejected"),
+                "Rate limit rejected {Path} for client {Client}.");
+
+        public static void Rejected(Microsoft.Extensions.Logging.ILogger logger, string path, string client) =>
+            RejectedMessage(logger, path, client, null);
+    }
 }

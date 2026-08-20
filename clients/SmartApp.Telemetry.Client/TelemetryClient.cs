@@ -14,6 +14,9 @@ public sealed class TelemetryClient : ITelemetryClient, IDisposable
     private static readonly Action<ILogger, Exception?> PayloadSerializationFailed =
         LoggerMessage.Define(LogLevel.Debug, new EventId(2, "PayloadSerializationFailed"), "Telemetry payload could not be serialized.");
 
+    private static readonly Action<ILogger, string?, Exception?> HeartbeatRateLimited =
+        LoggerMessage.Define<string?>(LogLevel.Debug, new EventId(3, "HeartbeatRateLimited"), "Heartbeat rate limited; retry after {RetryAfter}.");
+
     private readonly TelemetryOptions options;
     private readonly HttpClient httpClient;
     private readonly InstallationStore installationStore;
@@ -44,6 +47,7 @@ public sealed class TelemetryClient : ITelemetryClient, IDisposable
         foreach (var envelope in await localQueue.ReadAndClearAsync(cancellationToken))
             channel.Writer.TryWrite(envelope);
 
+        var lastHeartbeat = DateTimeOffset.MinValue;
         while (!cancellationToken.IsCancellationRequested)
         {
             try
@@ -52,6 +56,13 @@ public sealed class TelemetryClient : ITelemetryClient, IDisposable
                 var waitForTimer = Task.Delay(options.FlushInterval, cancellationToken);
                 await Task.WhenAny(waitForItem, waitForTimer);
                 await FlushAsync(cancellationToken);
+
+                if (enabled && options.EnableAnalytics &&
+                    DateTimeOffset.UtcNow - lastHeartbeat >= options.HeartbeatInterval)
+                {
+                    await SendHeartbeatAsync(cancellationToken);
+                    lastHeartbeat = DateTimeOffset.UtcNow;
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -130,7 +141,7 @@ public sealed class TelemetryClient : ITelemetryClient, IDisposable
         {
             foreach (var batch in group.Chunk(options.MaxBatchSize))
             {
-                if (!await SendBatchAsync(group.Key, batch, cancellationToken))
+                if (await SendBatchAsync(group.Key, batch, cancellationToken) == SendResult.RetryLater)
                     await localQueue.AppendAsync(batch, cancellationToken);
             }
         }
@@ -138,7 +149,7 @@ public sealed class TelemetryClient : ITelemetryClient, IDisposable
 
     public void SetEnabled(bool enabled) => this.enabled = enabled;
 
-    private async Task<bool> SendBatchAsync(string kind, IReadOnlyCollection<TelemetryEnvelope> batch, CancellationToken cancellationToken)
+    private async Task<SendResult> SendBatchAsync(string kind, IReadOnlyCollection<TelemetryEnvelope> batch, CancellationToken cancellationToken)
     {
         var payloads = batch.Select(x => x.Payload).ToArray();
         object body = kind == "error" ? new { errors = payloads } : new { events = payloads };
@@ -149,9 +160,10 @@ public sealed class TelemetryClient : ITelemetryClient, IDisposable
             try
             {
                 using var response = await httpClient.PostAsJsonAsync(route, body, cancellationToken);
-                if (response.IsSuccessStatusCode) return true;
-                if (response.StatusCode is not (HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests) && (int)response.StatusCode < 500)
-                    return false;
+                if (response.IsSuccessStatusCode) return SendResult.Sent;
+                if (response.StatusCode is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests)
+                    continue;
+                if ((int)response.StatusCode < 500) return SendResult.Drop;
             }
             catch (HttpRequestException) when (!cancellationToken.IsCancellationRequested)
             {
@@ -163,7 +175,39 @@ public sealed class TelemetryClient : ITelemetryClient, IDisposable
             await Task.Delay(TimeSpan.FromMilliseconds(150 * (attempt + 1)), cancellationToken);
         }
 
-        return false;
+        return SendResult.RetryLater;
+    }
+
+    private async Task SendHeartbeatAsync(CancellationToken cancellationToken)
+    {
+        var payload = new
+        {
+            application = options.Application,
+            installationId = installationStore.InstallationId,
+            timestamp = DateTimeOffset.UtcNow,
+            context = Context()
+        };
+
+        try
+        {
+            using var response = await httpClient.PostAsJsonAsync(
+                "api/v1/telemetry/installations/heartbeat", payload, cancellationToken);
+            if (response.StatusCode == HttpStatusCode.TooManyRequests && response.Headers.RetryAfter is { } retryAfter)
+                HeartbeatRateLimited(logger, retryAfter.ToString(), null);
+        }
+        catch (HttpRequestException) when (!cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private enum SendResult
+    {
+        Sent,
+        Drop,
+        RetryLater
     }
 
     private void Enqueue<T>(string kind, T payload)

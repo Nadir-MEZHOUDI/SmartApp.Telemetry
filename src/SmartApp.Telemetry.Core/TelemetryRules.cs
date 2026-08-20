@@ -7,6 +7,12 @@ namespace SmartApp.Telemetry.Core;
 
 public static class TelemetryRules
 {
+    private const int MaxProperties = 30;
+    private const int MaxPropertyKeyLength = 100;
+    private const int MaxStringLength = 2_000;
+    private const int MaxArrayItems = 100;
+    private const int MaxDepth = 6;
+
     public static readonly string[] AllowedEventNames =
     [
         "app_first_started", "app_started", "app_closed", "feature_used",
@@ -24,9 +30,7 @@ public static class TelemetryRules
             return "EventName is required and must be at most 100 characters.";
         if (!AllowedEventNames.Contains(request.EventName, StringComparer.Ordinal))
             return "The event name is not allowed.";
-        if (request.Properties is { } properties && properties.ValueKind is not JsonValueKind.Object and not JsonValueKind.Null)
-            return "Properties must be a JSON object.";
-        return null;
+        return ValidateProperties(request.Properties, "Properties");
     }
 
     public static string? ValidateException(ExceptionTelemetryRequest request)
@@ -37,9 +41,53 @@ public static class TelemetryRules
             return "InstallationId is required.";
         if (string.IsNullOrWhiteSpace(request.ExceptionType) || request.ExceptionType.Length > 300)
             return "ExceptionType is required and must be at most 300 characters.";
-        if (request.AdditionalContext is { } context && context.ValueKind is not JsonValueKind.Object and not JsonValueKind.Null)
-            return "AdditionalContext must be a JSON object.";
-        return null;
+        return ValidateProperties(request.AdditionalContext, "AdditionalContext");
+    }
+
+    public static string? ValidateProperties(JsonElement? properties, string label)
+    {
+        if (properties is not { } element || element.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+            return null;
+        if (element.ValueKind != JsonValueKind.Object)
+            return $"{label} must be a JSON object.";
+        if (element.EnumerateObject().Count() > MaxProperties)
+            return $"{label} may contain at most {MaxProperties} entries.";
+        return ValidateValue(element, 0, label);
+    }
+
+    private static string? ValidateValue(JsonElement value, int depth, string label)
+    {
+        if (depth > MaxDepth)
+            return $"{label} are nested too deeply.";
+        switch (value.ValueKind)
+        {
+            case JsonValueKind.Object:
+                if (value.EnumerateObject().Count() > MaxProperties)
+                    return $"{label} objects may contain at most {MaxProperties} entries.";
+                foreach (var property in value.EnumerateObject())
+                {
+                    if (property.Name.Length > MaxPropertyKeyLength)
+                        return $"{label} keys must be at most {MaxPropertyKeyLength} characters.";
+                    var error = ValidateValue(property.Value, depth + 1, label);
+                    if (error is not null) return error;
+                }
+                return null;
+            case JsonValueKind.Array:
+                if (value.GetArrayLength() > MaxArrayItems)
+                    return $"{label} arrays may contain at most {MaxArrayItems} items.";
+                foreach (var item in value.EnumerateArray())
+                {
+                    var error = ValidateValue(item, depth + 1, label);
+                    if (error is not null) return error;
+                }
+                return null;
+            case JsonValueKind.String:
+                return value.GetString() is { Length: > MaxStringLength }
+                    ? $"String values in {label} must be at most {MaxStringLength} characters."
+                    : null;
+            default:
+                return null;
+        }
     }
 
     public static string Fingerprint(string exceptionType, string? stackTrace)

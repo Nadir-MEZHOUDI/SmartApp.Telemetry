@@ -18,6 +18,7 @@ else if (Error == "not-configured")
 }
 
 <form method="post" action="/login/submit" class="auth-form">
+    <AntiforgeryToken />
     <input type="hidden" name="returnUrl" value="@ReturnUrl" />
     <label for="password">Dashboard password</label>
     <input id="password" name="password" type="password" autocomplete="current-password" required autofocus />
