@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.AspNetCore.WebUtilities;
 
 namespace SmartApp.Telemetry.Web.Services;
 
@@ -21,4 +22,15 @@ public static class DashboardAuthentication
         !returnUrl.StartsWith("//", StringComparison.Ordinal)
             ? returnUrl
             : "/";
+
+    public static string LoginUrl(string? returnUrl, string? error = null)
+    {
+        var values = new Dictionary<string, string?>
+        {
+            ["returnUrl"] = SafeReturnUrl(returnUrl)
+        };
+        if (!string.IsNullOrWhiteSpace(error))
+            values["error"] = error;
+        return QueryHelpers.AddQueryString("/login", values);
+    }
 }
