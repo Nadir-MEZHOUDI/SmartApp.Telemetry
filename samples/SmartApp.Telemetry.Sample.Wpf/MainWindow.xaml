@@ -1,0 +1,19 @@
+<Window x:Class="SmartApp.Telemetry.Sample.Wpf.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="SmartApp Telemetry Sample (WPF)" Height="300" Width="420"
+        WindowStartupLocation="CenterScreen">
+    <StackPanel Margin="24" VerticalAlignment="Center">
+        <TextBlock Text="SmartApp Telemetry - WPF Sample"
+                   FontSize="18" FontWeight="SemiBold" Margin="0,0,0,16" />
+        <TextBlock TextWrapping="Wrap" Margin="0,0,0,20"
+                   Text="Each click sends a telemetry event to the server. Exception handling is attached process-wide." />
+
+        <Button Content="Track Feature: ExportPdf" Padding="12,8" Margin="0,0,0,8"
+                Click="OnExportPdfClicked" />
+        <Button Content="Track Feature: Backup" Padding="12,8" Margin="0,0,0,8"
+                Click="OnBackupClicked" />
+        <Button Content="Throw a test exception" Padding="12,8"
+                Click="OnThrowClicked" />
+    </StackPanel>
+</Window>
