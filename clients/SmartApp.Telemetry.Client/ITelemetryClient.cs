@@ -2,6 +2,7 @@ namespace SmartApp.Telemetry.Client;
 
 public interface ITelemetryClient
 {
+    Guid InstallationId { get; }
     void Track(string eventName);
     void Track(string eventName, object? properties);
     void TrackException(Exception exception);

@@ -18,6 +18,14 @@ public sealed class TelemetryClient : ITelemetryClient, IDisposable
     private static readonly Action<ILogger, string?, Exception?> HeartbeatRateLimited =
         LoggerMessage.Define<string?>(LogLevel.Debug, new EventId(3, "HeartbeatRateLimited"), "Heartbeat rate limited; retry after {RetryAfter}.");
 
+    // Verbose bridge for WPF sample — mirrors every HTTP result as a multiline log line
+    private static readonly Action<ILogger, string, int, string?, Exception?> IngestResult =
+        LoggerMessage.Define<string, int, string?>(LogLevel.Information, new EventId(10, "IngestResult"), "Telemetry ingest {Route} -> {Status} {Body}");
+    private static readonly Action<ILogger, string, string?, Exception?> IngestException =
+        LoggerMessage.Define<string, string?>(LogLevel.Warning, new EventId(11, "IngestException"), "Telemetry ingest {Route} exception: {Message}");
+    private static readonly Action<ILogger, string, Exception?> EnqueueFailed =
+        LoggerMessage.Define<string>(LogLevel.Error, new EventId(12, "EnqueueFailed"), "Telemetry enqueue failed for {Kind}");
+
     private readonly TelemetryOptions options;
     private readonly HttpClient httpClient;
     private readonly InstallationStore installationStore;
@@ -25,6 +33,8 @@ public sealed class TelemetryClient : ITelemetryClient, IDisposable
     private readonly Channel<TelemetryEnvelope> channel;
     private readonly ILogger<TelemetryClient> logger;
     private volatile bool enabled;
+
+    public Guid InstallationId => installationStore.InstallationId;
 
     internal TelemetryClient(HttpClient httpClient, TelemetryOptions options, ILogger<TelemetryClient> logger)
     {
@@ -70,6 +80,7 @@ public sealed class TelemetryClient : ITelemetryClient, IDisposable
             catch (Exception exception)
             {
                 WorkerCycleFailed(logger, exception);
+                WpfLogBridge.Write($"[WORKER] cycle failed: {exception.GetType().Name}: {exception.Message}\n{exception}");
             }
         }
     }
@@ -159,21 +170,46 @@ public sealed class TelemetryClient : ITelemetryClient, IDisposable
             try
             {
                 using var response = await httpClient.PostAsJsonAsync(route, body, cancellationToken);
+                var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                var truncated = responseBody.Length > 1200 ? responseBody[..1200] + " …(truncated)" : responseBody;
+                var status = (int)response.StatusCode;
+                var line = $"[RESPONSE] POST {route} -> {status} {response.StatusCode}  attempt {attempt + 1}/2  batch={batch.Count}  body={(string.IsNullOrWhiteSpace(truncated) ? "(empty — 202 Accepted expected)" : truncated)}";
+                IngestResult(logger, route, status, truncated, null);
+                WpfLogBridge.Write(line);
+
                 if (response.IsSuccessStatusCode) return SendResult.Sent;
                 if (response.StatusCode is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests)
+                {
+                    WpfLogBridge.Write($"[RETRY] {route} rate-limited/timeout, will retry...");
                     continue;
-                if ((int)response.StatusCode < 500) return SendResult.Drop;
+                }
+                if (status < 500)
+                {
+                    WpfLogBridge.Write($"[DROP] {route} {status} <500 — server rejected payload (check app slug / validation). Not retried. Body: {truncated}");
+                    return SendResult.Drop;
+                }
             }
-            catch (HttpRequestException) when (!cancellationToken.IsCancellationRequested)
+            catch (HttpRequestException ex) when (!cancellationToken.IsCancellationRequested)
             {
+                var msg = $"[EXCEPTION] POST {route} HttpRequestException attempt {attempt + 1}/2: {ex.Message} {(ex.InnerException is not null ? $" Inner: {ex.InnerException.Message}" : "")}";
+                IngestException(logger, route, ex.Message, ex);
+                WpfLogBridge.Write(msg);
             }
-            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+            catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
             {
+                var msg = $"[TIMEOUT] POST {route} TaskCanceledException attempt {attempt + 1}/2 (HttpTimeout={options.HttpTimeout.TotalSeconds}s): {ex.Message}";
+                IngestException(logger, route, ex.Message, ex);
+                WpfLogBridge.Write(msg);
+            }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                WpfLogBridge.Write($"[EXCEPTION] POST {route} {ex.GetType().Name}: {ex.Message}\n{ex}");
             }
 
             await Task.Delay(TimeSpan.FromMilliseconds(150 * (attempt + 1)), cancellationToken);
         }
 
+        WpfLogBridge.Write($"[RETRY-LATER] {route} batch={batch.Count} queued to local file — will retry next flush.");
         return SendResult.RetryLater;
     }
 
@@ -191,14 +227,18 @@ public sealed class TelemetryClient : ITelemetryClient, IDisposable
         {
             using var response = await httpClient.PostAsJsonAsync(
                 "api/v1/telemetry/installations/heartbeat", payload, cancellationToken);
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            WpfLogBridge.Write($"[HEARTBEAT] POST heartbeat -> {(int)response.StatusCode} {response.StatusCode} body={(string.IsNullOrWhiteSpace(body) ? "(empty)" : body[..Math.Min(600, body.Length)])}");
             if (response.StatusCode == HttpStatusCode.TooManyRequests && response.Headers.RetryAfter is { } retryAfter)
                 HeartbeatRateLimited(logger, retryAfter.ToString(), null);
         }
-        catch (HttpRequestException) when (!cancellationToken.IsCancellationRequested)
+        catch (HttpRequestException ex) when (!cancellationToken.IsCancellationRequested)
         {
+            WpfLogBridge.Write($"[HEARTBEAT EXCEPTION] HttpRequestException: {ex.Message}");
         }
-        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
+            WpfLogBridge.Write($"[HEARTBEAT TIMEOUT] {ex.Message}");
         }
     }
 
@@ -214,11 +254,15 @@ public sealed class TelemetryClient : ITelemetryClient, IDisposable
         try
         {
             var json = JsonSerializer.SerializeToElement(payload, PayloadOptions);
-            channel.Writer.TryWrite(new TelemetryEnvelope(kind, json));
+            var ok = channel.Writer.TryWrite(new TelemetryEnvelope(kind, json));
+            if (!ok) WpfLogBridge.Write($"[ENQUEUE] channel full (MaxInMemoryItems={options.MaxInMemoryItems}) — oldest dropped. kind={kind}");
+            else WpfLogBridge.Write($"[ENQUEUE] {kind} queued — channel count grows. payload={json.GetRawText()[..Math.Min(400, json.GetRawText().Length)]}");
         }
         catch (Exception exception)
         {
             PayloadSerializationFailed(logger, exception);
+            EnqueueFailed(logger, kind, exception);
+            WpfLogBridge.Write($"[ENQUEUE FAILED] kind={kind} {exception.GetType().Name}: {exception.Message}\n{exception}");
         }
     }
 

@@ -25,6 +25,8 @@ public sealed class TelemetrySession : ITelemetryClient, IAsyncDisposable
 
     public void TrackAppClosed() => client.TrackAppClosed();
 
+    public Guid InstallationId => client.InstallationId;
+
     public void TrackFeatureUsed(string feature) => client.TrackFeatureUsed(feature);
 
     public void TrackOperationSucceeded(string operation) => client.TrackOperationSucceeded(operation);

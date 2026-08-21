@@ -1,12 +1,17 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace SmartApp.Telemetry.Client;
 
 public static class TelemetryFactory
 {
-    public static TelemetrySession Create(Action<TelemetryOptions> configure)
+    public static TelemetrySession Create(Action<TelemetryOptions> configure) =>
+        Create(configure, NullLogger<TelemetryClient>.Instance);
+
+    public static TelemetrySession Create(Action<TelemetryOptions> configure, ILogger<TelemetryClient> logger)
     {
         ArgumentNullException.ThrowIfNull(configure);
+        ArgumentNullException.ThrowIfNull(logger);
 
         var options = new TelemetryOptions
         {
@@ -23,7 +28,7 @@ public static class TelemetryFactory
         };
         httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("SmartApp.Telemetry.Client/1.0");
 
-        var client = new TelemetryClient(httpClient, options, NullLogger<TelemetryClient>.Instance);
+        var client = new TelemetryClient(httpClient, options, logger);
         return new TelemetrySession(client);
     }
 }

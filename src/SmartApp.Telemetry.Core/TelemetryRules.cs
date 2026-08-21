@@ -28,9 +28,16 @@ public static class TelemetryRules
             return "InstallationId is required.";
         if (string.IsNullOrWhiteSpace(request.EventName) || request.EventName.Length > 100)
             return "EventName is required and must be at most 100 characters.";
-        if (!AllowedEventNames.Contains(request.EventName, StringComparer.Ordinal))
-            return "The event name is not allowed.";
+        if (!IsAllowedOrCustomEventName(request.EventName))
+            return "The event name is not allowed. Use a known name (app_started, feature_used, etc.) or a custom lowercase name like 'user_action' matching ^[a-z][a-z0-9_.-]*$.";
         return ValidateProperties(request.Properties, "Properties");
+    }
+
+    private static bool IsAllowedOrCustomEventName(string name)
+    {
+        if (AllowedEventNames.Contains(name, StringComparer.Ordinal)) return true;
+        // Allow custom analytics events: 2-100 chars, starts with letter, only a-z0-9 _ . -
+        return Regex.IsMatch(name, @"^[a-z][a-z0-9_\.\-]{1,99}$");
     }
 
     public static string? ValidateException(ExceptionTelemetryRequest request)

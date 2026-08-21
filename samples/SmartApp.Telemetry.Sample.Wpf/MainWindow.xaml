@@ -14,11 +14,57 @@
             <StackPanel>
                 <GroupBox Header="Connection" Padding="8" Margin="0,0,0,10">
                     <StackPanel>
-                        <TextBlock x:Name="ConnectionInfo" TextWrapping="Wrap" Margin="0,0,0,10" />
+                        <Grid Margin="0,0,0,10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="110" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Endpoint" Opacity="0.6" FontSize="11" VerticalAlignment="Center" />
+                            <TextBox Grid.Row="0" Grid.Column="1" x:Name="EndpointText" IsReadOnly="True" BorderThickness="0" Background="Transparent"
+                                      FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" Padding="0,2" />
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="App Id" Opacity="0.6" FontSize="11" VerticalAlignment="Center" />
+                            <TextBox Grid.Row="1" Grid.Column="1" x:Name="AppIdText" IsReadOnly="True" BorderThickness="0" Background="Transparent"
+                                      FontFamily="Consolas" FontSize="11" FontWeight="SemiBold" Padding="0,2" />
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Installation Id" Opacity="0.6" FontSize="11" VerticalAlignment="Center" />
+                            <DockPanel Grid.Row="2" Grid.Column="1">
+                                <Button DockPanel.Dock="Right" Content="Copy" Padding="8,2" Margin="6,0,0,0" FontSize="11"
+                                         Click="OnCopyInstallationIdClicked" VerticalAlignment="Center" />
+                                <TextBox x:Name="InstallationIdText" IsReadOnly="True" BorderThickness="0" Background="Transparent"
+                                          FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" Padding="0,2" VerticalAlignment="Center" />
+                            </DockPanel>
+                        </Grid>
+                        <!-- Kept for compatibility / detailed log; collapsed but updated in code-behind -->
+                        <TextBlock x:Name="ConnectionInfo" Visibility="Collapsed" TextWrapping="Wrap" />
                         <CheckBox x:Name="EnabledCheck" Content="Telemetry enabled" IsChecked="True"
-                                  Checked="OnEnabledChanged" Unchecked="OnEnabledChanged" Margin="0,0,0,6" />
+                                   Checked="OnEnabledChanged" Unchecked="OnEnabledChanged" Margin="0,0,0,6" />
                         <Button Content="Flush queue now" Padding="12,6" Click="OnFlushClicked"
-                                HorizontalAlignment="Left" />
+                                 HorizontalAlignment="Left" />
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox Header="Diagnostics — API Status" Padding="8" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Verifies the Web API is reachable and the app slug is registered." TextWrapping="Wrap" Opacity="0.7" FontSize="11" Margin="0,0,0,8" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <Button Content="Check API status" Padding="12,6" Click="OnCheckApiStatusClicked" HorizontalAlignment="Left" />
+                            <Button Content="Probe all ports" Padding="12,6" Margin="8,0,0,0" Click="OnProbePortsClicked" HorizontalAlignment="Left" />
+                        </StackPanel>
+                        <Border BorderBrush="#33000000" BorderThickness="1" CornerRadius="4" Background="#FFF8F8F8">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" MaxHeight="220">
+                                <TextBox x:Name="DiagnosticsOutput" TextWrapping="Wrap" BorderThickness="0" Background="Transparent"
+                                         IsReadOnly="True" FontFamily="Consolas" FontSize="11" Padding="6"
+                                         Text="Click &#x22;Check API status&#x22; to test connectivity." />
+                            </ScrollViewer>
+                        </Border>
+                        <TextBlock Text="Tried: GET /health, /api, /api/v1/applications — failure here means the endpoint/port is wrong or the server is not running." TextWrapping="Wrap" Opacity="0.55" FontSize="10" Margin="0,6,0,0" />
                     </StackPanel>
                 </GroupBox>
 
@@ -67,8 +113,29 @@
         </ScrollViewer>
 
         <DockPanel Grid.Column="1" Margin="16,0,0,0">
-            <TextBlock DockPanel.Dock="Top" Text="Log" FontWeight="SemiBold" Margin="0,0,0,8" />
-            <ListBox x:Name="LogList" />
+            <TextBlock DockPanel.Dock="Top" Text="Log — multiline, every response &amp; exception" FontWeight="SemiBold" Margin="0,0,0,8" />
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+                <Button Content="Clear log" Padding="12,6" Click="OnClearLogClicked" />
+                <Button Content="Copy log" Padding="12,6" Margin="8,0,0,0" Click="OnCopyLogClicked" />
+                <CheckBox x:Name="AutoScrollCheck" Content="Auto-scroll" IsChecked="True" VerticalAlignment="Center" Margin="16,0,0,0" />
+            </StackPanel>
+            <Border BorderBrush="#33000000" BorderThickness="1" CornerRadius="4" Background="#FFF8F8F8">
+                <ScrollViewer x:Name="LogScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <TextBox x:Name="LogBox"
+                             AcceptsReturn="True"
+                             AcceptsTab="False"
+                             IsReadOnly="True"
+                             TextWrapping="Wrap"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             FontFamily="Consolas"
+                             FontSize="11"
+                             Padding="8"
+                             VerticalScrollBarVisibility="Disabled"
+                             HorizontalScrollBarVisibility="Disabled"
+                             Text="Log will appear here — every Track, Flush, HTTP status, response body, exception, and error." />
+                </ScrollViewer>
+            </Border>
         </DockPanel>
     </Grid>
 </Window>

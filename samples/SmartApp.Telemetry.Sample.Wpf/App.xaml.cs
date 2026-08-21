@@ -6,20 +6,23 @@ namespace SmartApp.Telemetry.Sample.Wpf;
 public partial class App : Application
 {
     public ITelemetryClient Telemetry { get; }
+    public string Endpoint { get; }
+    public string ApplicationName { get; }
+    public Guid InstallationId => Telemetry.InstallationId;
 
     public App()
     {
-        var endpoint = Environment.GetEnvironmentVariable("TELEMETRY_ENDPOINT") ?? "http://localhost:8091";
-        var application = Environment.GetEnvironmentVariable("TELEMETRY_APP") ?? "sample-wpf";
+        Endpoint = Environment.GetEnvironmentVariable("TELEMETRY_ENDPOINT") ?? "http://localhost:5000";
+        ApplicationName = Environment.GetEnvironmentVariable("TELEMETRY_APP") ?? "sample-wpf";
 
         Telemetry = TelemetryFactory.Create(options =>
         {
-            options.Endpoint = endpoint;
-            options.Application = application;
+            options.Endpoint = Endpoint;
+            options.Application = ApplicationName;
             options.Version = "1.0.0";
             options.EnableAnalytics = true;
             options.EnableCrashReporting = true;
-        });
+        }, new WpfBridgeLogger());
     }
 
     protected override void OnStartup(StartupEventArgs e)
