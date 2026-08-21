@@ -7,46 +7,55 @@ namespace SmartApp.Telemetry.Web.Tests;
 
 public sealed class TelemetryAggregationServiceTests
 {
-    private static async Task<(TelemetryDbContext Db, TelemetryAggregationService Service)> CreateSeededAsync()
+    private sealed class TestFactory(DbContextOptions<TelemetryDbContext> options) : IDbContextFactory<TelemetryDbContext>
+    {
+        public TelemetryDbContext CreateDbContext() => new(options);
+        public Task<TelemetryDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default) => Task.FromResult(CreateDbContext());
+    }
+
+    private static async Task<(IDbContextFactory<TelemetryDbContext> Factory, TelemetryAggregationService Service)> CreateSeededAsync()
     {
         var options = new DbContextOptionsBuilder<TelemetryDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        var db = new TelemetryDbContext(options);
+        var factory = new TestFactory(options);
         var now = DateTime.UtcNow;
         var yesterday = now.Date.AddDays(-1).ToUniversalTime();
         var application = new Application { Id = Guid.NewGuid(), Name = "One", Slug = "one" };
-        db.Applications.Add(application);
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            db.Applications.Add(application);
 
-        var first = Guid.CreateVersion7();
-        var second = Guid.CreateVersion7();
-        db.Installations.AddRange(
-            new Installation { Id = Guid.NewGuid(), ApplicationId = application.Id, InstallationId = first, FirstSeenAt = yesterday, LastSeenAt = now },
-            new Installation { Id = Guid.NewGuid(), ApplicationId = application.Id, InstallationId = second, FirstSeenAt = now.AddDays(-10), LastSeenAt = now });
+            var first = Guid.CreateVersion7();
+            var second = Guid.CreateVersion7();
+            db.Installations.AddRange(
+                new Installation { Id = Guid.NewGuid(), ApplicationId = application.Id, InstallationId = first, FirstSeenAt = yesterday, LastSeenAt = now },
+                new Installation { Id = Guid.NewGuid(), ApplicationId = application.Id, InstallationId = second, FirstSeenAt = now.AddDays(-10), LastSeenAt = now });
 
-        db.TelemetryEvents.AddRange(
-            new TelemetryEvent { ApplicationId = application.Id, InstallationId = first, EventName = "feature_used", PropertiesJson = "{}", OccurredAt = yesterday },
-            new TelemetryEvent { ApplicationId = application.Id, InstallationId = first, EventName = "feature_used", PropertiesJson = "{}", OccurredAt = yesterday.AddMinutes(5) },
-            new TelemetryEvent { ApplicationId = application.Id, InstallationId = second, EventName = "app_started", PropertiesJson = "{}", OccurredAt = yesterday.AddMinutes(10) },
-            new TelemetryEvent { ApplicationId = application.Id, InstallationId = second, EventName = "app_started", PropertiesJson = "{}", OccurredAt = now });
+            db.TelemetryEvents.AddRange(
+                new TelemetryEvent { ApplicationId = application.Id, InstallationId = first, EventName = "feature_used", PropertiesJson = "{}", OccurredAt = yesterday },
+                new TelemetryEvent { ApplicationId = application.Id, InstallationId = first, EventName = "feature_used", PropertiesJson = "{}", OccurredAt = yesterday.AddMinutes(5) },
+                new TelemetryEvent { ApplicationId = application.Id, InstallationId = second, EventName = "app_started", PropertiesJson = "{}", OccurredAt = yesterday.AddMinutes(10) },
+                new TelemetryEvent { ApplicationId = application.Id, InstallationId = second, EventName = "app_started", PropertiesJson = "{}", OccurredAt = now });
 
-        db.ErrorOccurrences.Add(
-            new ErrorOccurrence { ErrorGroupId = Guid.NewGuid(), ApplicationId = application.Id, InstallationId = first, ExceptionType = "System.Exception", Message = "boom", ContextJson = "{}", OccurredAt = yesterday });
+            db.ErrorOccurrences.Add(
+                new ErrorOccurrence { ErrorGroupId = Guid.NewGuid(), ApplicationId = application.Id, InstallationId = first, ExceptionType = "System.Exception", Message = "boom", ContextJson = "{}", OccurredAt = yesterday });
 
-        await db.SaveChangesAsync();
-        return (db, new TelemetryAggregationService(db));
+            await db.SaveChangesAsync();
+        }
+        return (factory, new TelemetryAggregationService(factory));
     }
 
     [Fact]
     public async Task RebuildDailyStats_aggregates_events_and_is_idempotent()
     {
-        var (db, service) = await CreateSeededAsync();
-        await using var _ = db;
+        var (factory, service) = await CreateSeededAsync();
         var yesterday = DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(-1));
 
         await service.RebuildDailyStatsAsync(yesterday, CancellationToken.None);
         await service.RebuildDailyStatsAsync(yesterday, CancellationToken.None);
 
+        await using var db = await factory.CreateDbContextAsync();
         var daily = Assert.Single(db.DailyApplicationStats);
         Assert.Equal(2, daily.ActiveInstallations);
         Assert.Equal(1, daily.NewInstallations);
@@ -66,20 +75,26 @@ public sealed class TelemetryAggregationServiceTests
     [Fact]
     public async Task DeleteExpired_removes_only_rows_beyond_retention()
     {
-        var (db, service) = await CreateSeededAsync();
-        await using var _ = db;
-        var applicationId = db.Applications.Single().Id;
-        var oldEvent = new TelemetryEvent { ApplicationId = applicationId, InstallationId = Guid.CreateVersion7(), EventName = "app_started", PropertiesJson = "{}", OccurredAt = DateTime.UtcNow.AddDays(-120) };
-        var oldError = new ErrorOccurrence { ErrorGroupId = Guid.NewGuid(), ApplicationId = applicationId, InstallationId = Guid.CreateVersion7(), ExceptionType = "System.Exception", Message = "old", ContextJson = "{}", OccurredAt = DateTime.UtcNow.AddDays(-200) };
-        db.TelemetryEvents.Add(oldEvent);
-        db.ErrorOccurrences.Add(oldError);
-        await db.SaveChangesAsync();
+        var (factory, service) = await CreateSeededAsync();
+        Guid applicationId;
+        TelemetryEvent oldEvent;
+        ErrorOccurrence oldError;
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            applicationId = db.Applications.Single().Id;
+            oldEvent = new TelemetryEvent { ApplicationId = applicationId, InstallationId = Guid.CreateVersion7(), EventName = "app_started", PropertiesJson = "{}", OccurredAt = DateTime.UtcNow.AddDays(-120) };
+            oldError = new ErrorOccurrence { ErrorGroupId = Guid.NewGuid(), ApplicationId = applicationId, InstallationId = Guid.CreateVersion7(), ExceptionType = "System.Exception", Message = "old", ContextJson = "{}", OccurredAt = DateTime.UtcNow.AddDays(-200) };
+            db.TelemetryEvents.Add(oldEvent);
+            db.ErrorOccurrences.Add(oldError);
+            await db.SaveChangesAsync();
+        }
 
         await service.DeleteExpiredAsync(90, 180, CancellationToken.None);
 
-        Assert.DoesNotContain(db.TelemetryEvents, x => x.Id == oldEvent.Id);
-        Assert.DoesNotContain(db.ErrorOccurrences, x => x.Id == oldError.Id);
-        Assert.Equal(4, db.TelemetryEvents.Count());
-        Assert.Single(db.ErrorOccurrences);
+        await using var assertDb = await factory.CreateDbContextAsync();
+        Assert.DoesNotContain(assertDb.TelemetryEvents, x => x.Id == oldEvent.Id);
+        Assert.DoesNotContain(assertDb.ErrorOccurrences, x => x.Id == oldError.Id);
+        Assert.Equal(4, assertDb.TelemetryEvents.Count());
+        Assert.Single(assertDb.ErrorOccurrences);
     }
 }

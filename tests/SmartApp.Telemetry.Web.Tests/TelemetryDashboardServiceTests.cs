@@ -8,59 +8,68 @@ namespace SmartApp.Telemetry.Web.Tests;
 
 public sealed class TelemetryDashboardServiceTests
 {
-    private static async Task<(TelemetryDbContext Db, TelemetryDashboardService Service)> CreateSeededAsync()
+    private sealed class TestFactory(DbContextOptions<TelemetryDbContext> options) : IDbContextFactory<TelemetryDbContext>
+    {
+        public TelemetryDbContext CreateDbContext() => new(options);
+        public Task<TelemetryDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default) => Task.FromResult(CreateDbContext());
+    }
+
+    private static async Task<(IDbContextFactory<TelemetryDbContext> Factory, TelemetryDashboardService Service)> CreateSeededAsync()
     {
         var options = new DbContextOptionsBuilder<TelemetryDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        var db = new TelemetryDbContext(options);
+        var factory = new TestFactory(options);
         var now = DateTime.UtcNow;
 
         var appOne = new Application { Id = Guid.NewGuid(), Name = "One", Slug = "one" };
         var appTwo = new Application { Id = Guid.NewGuid(), Name = "Two", Slug = "two", IsEnabled = false };
-        db.Applications.AddRange(appOne, appTwo);
 
-        var activeToday = new Installation
+        await using (var db = await factory.CreateDbContextAsync())
         {
-            Id = Guid.NewGuid(), ApplicationId = appOne.Id, InstallationId = Guid.CreateVersion7(),
-            FirstSeenAt = now.AddDays(-1), LastSeenAt = now, CurrentVersion = "2.0", CountryCode = "DZ",
-            OperatingSystem = "Windows"
-        };
-        var activeLastWeek = new Installation
-        {
-            Id = Guid.NewGuid(), ApplicationId = appOne.Id, InstallationId = Guid.CreateVersion7(),
-            FirstSeenAt = now.AddDays(-10), LastSeenAt = now.AddDays(-3), CurrentVersion = "1.5", CountryCode = "FR"
-        };
-        var inactive = new Installation
-        {
-            Id = Guid.NewGuid(), ApplicationId = appOne.Id, InstallationId = Guid.CreateVersion7(),
-            FirstSeenAt = now.AddDays(-60), LastSeenAt = now.AddDays(-40), CurrentVersion = "1.0"
-        };
-        db.Installations.AddRange(activeToday, activeLastWeek, inactive);
+            db.Applications.AddRange(appOne, appTwo);
 
-        db.TelemetryEvents.AddRange(
-            new TelemetryEvent { ApplicationId = appOne.Id, InstallationId = activeToday.InstallationId, EventName = "feature_used", PropertiesJson = JsonSerializer.Serialize(new { feature = "ExportPdf" }), OccurredAt = now },
-            new TelemetryEvent { ApplicationId = appOne.Id, InstallationId = activeToday.InstallationId, EventName = "feature_used", PropertiesJson = JsonSerializer.Serialize(new { feature = "ExportPdf" }), OccurredAt = now.AddMinutes(-1) },
-            new TelemetryEvent { ApplicationId = appOne.Id, InstallationId = activeLastWeek.InstallationId, EventName = "feature_used", PropertiesJson = JsonSerializer.Serialize(new { feature = "Import" }), OccurredAt = now.AddDays(-5) },
-            new TelemetryEvent { ApplicationId = appOne.Id, InstallationId = activeToday.InstallationId, EventName = "app_started", PropertiesJson = "{}", OccurredAt = now });
+            var activeToday = new Installation
+            {
+                Id = Guid.NewGuid(), ApplicationId = appOne.Id, InstallationId = Guid.CreateVersion7(),
+                FirstSeenAt = now.AddDays(-1), LastSeenAt = now, CurrentVersion = "2.0", CountryCode = "DZ",
+                OperatingSystem = "Windows"
+            };
+            var activeLastWeek = new Installation
+            {
+                Id = Guid.NewGuid(), ApplicationId = appOne.Id, InstallationId = Guid.CreateVersion7(),
+                FirstSeenAt = now.AddDays(-10), LastSeenAt = now.AddDays(-3), CurrentVersion = "1.5", CountryCode = "FR"
+            };
+            var inactive = new Installation
+            {
+                Id = Guid.NewGuid(), ApplicationId = appOne.Id, InstallationId = Guid.CreateVersion7(),
+                FirstSeenAt = now.AddDays(-60), LastSeenAt = now.AddDays(-40), CurrentVersion = "1.0"
+            };
+            db.Installations.AddRange(activeToday, activeLastWeek, inactive);
 
-        var nullGroup = new ErrorGroup { Id = Guid.NewGuid(), ApplicationId = appOne.Id, Fingerprint = "aaa", ExceptionType = "System.NullReferenceException", Title = "NullReferenceException: Save failed", FirstSeenAt = now.AddDays(-2), LastSeenAt = now, FirstSeenVersion = "1.5", LastSeenVersion = "2.0", TotalOccurrences = 2, AffectedInstallations = 1, IsResolved = false, IsRegressed = false };
-        var timeoutGroup = new ErrorGroup { Id = Guid.NewGuid(), ApplicationId = appOne.Id, Fingerprint = "bbb", ExceptionType = "System.TimeoutException", Title = "TimeoutException: Network timeout", FirstSeenAt = now.AddDays(-5), LastSeenAt = now.AddDays(-1), FirstSeenVersion = "1.0", LastSeenVersion = "1.5", TotalOccurrences = 1, AffectedInstallations = 1, IsResolved = true, IsRegressed = false, ResolvedAt = now.AddDays(-1) };
-        db.ErrorGroups.AddRange(nullGroup, timeoutGroup);
+            db.TelemetryEvents.AddRange(
+                new TelemetryEvent { ApplicationId = appOne.Id, InstallationId = activeToday.InstallationId, EventName = "feature_used", PropertiesJson = JsonSerializer.Serialize(new { feature = "ExportPdf" }), OccurredAt = now },
+                new TelemetryEvent { ApplicationId = appOne.Id, InstallationId = activeToday.InstallationId, EventName = "feature_used", PropertiesJson = JsonSerializer.Serialize(new { feature = "ExportPdf" }), OccurredAt = now.AddMinutes(-1) },
+                new TelemetryEvent { ApplicationId = appOne.Id, InstallationId = activeLastWeek.InstallationId, EventName = "feature_used", PropertiesJson = JsonSerializer.Serialize(new { feature = "Import" }), OccurredAt = now.AddDays(-5) },
+                new TelemetryEvent { ApplicationId = appOne.Id, InstallationId = activeToday.InstallationId, EventName = "app_started", PropertiesJson = "{}", OccurredAt = now });
 
-        db.ErrorOccurrences.AddRange(
-            new ErrorOccurrence { ErrorGroupId = nullGroup.Id, ApplicationId = appOne.Id, InstallationId = activeToday.InstallationId, ExceptionType = "System.NullReferenceException", Message = "Save failed", ContextJson = "{}", OccurredAt = now },
-            new ErrorOccurrence { ErrorGroupId = timeoutGroup.Id, ApplicationId = appOne.Id, InstallationId = activeLastWeek.InstallationId, ExceptionType = "System.TimeoutException", Message = "Network timeout", ContextJson = "{}", OccurredAt = now.AddDays(-1) });
+            var nullGroup = new ErrorGroup { Id = Guid.NewGuid(), ApplicationId = appOne.Id, Fingerprint = "aaa", ExceptionType = "System.NullReferenceException", Title = "NullReferenceException: Save failed", FirstSeenAt = now.AddDays(-2), LastSeenAt = now, FirstSeenVersion = "1.5", LastSeenVersion = "2.0", TotalOccurrences = 2, AffectedInstallations = 1, IsResolved = false, IsRegressed = false };
+            var timeoutGroup = new ErrorGroup { Id = Guid.NewGuid(), ApplicationId = appOne.Id, Fingerprint = "bbb", ExceptionType = "System.TimeoutException", Title = "TimeoutException: Network timeout", FirstSeenAt = now.AddDays(-5), LastSeenAt = now.AddDays(-1), FirstSeenVersion = "1.0", LastSeenVersion = "1.5", TotalOccurrences = 1, AffectedInstallations = 1, IsResolved = true, IsRegressed = false, ResolvedAt = now.AddDays(-1) };
+            db.ErrorGroups.AddRange(nullGroup, timeoutGroup);
 
-        await db.SaveChangesAsync();
-        return (db, new TelemetryDashboardService(db));
+            db.ErrorOccurrences.AddRange(
+                new ErrorOccurrence { ErrorGroupId = nullGroup.Id, ApplicationId = appOne.Id, InstallationId = activeToday.InstallationId, ExceptionType = "System.NullReferenceException", Message = "Save failed", ContextJson = "{}", OccurredAt = now },
+                new ErrorOccurrence { ErrorGroupId = timeoutGroup.Id, ApplicationId = appOne.Id, InstallationId = activeLastWeek.InstallationId, ExceptionType = "System.TimeoutException", Message = "Network timeout", ContextJson = "{}", OccurredAt = now.AddDays(-1) });
+
+            await db.SaveChangesAsync();
+        }
+        return (factory, new TelemetryDashboardService(factory));
     }
 
     [Fact]
     public async Task Overview_reports_installations_activity_and_crash_free_counts()
     {
-        var (db, service) = await CreateSeededAsync();
-        await using var _ = db;
+        var (_, service) = await CreateSeededAsync();
 
         var overview = await service.GetOverviewAsync(CancellationToken.None);
 
@@ -77,8 +86,7 @@ public sealed class TelemetryDashboardServiceTests
     [Fact]
     public async Task Application_view_reports_versions_countries_and_top_features()
     {
-        var (db, service) = await CreateSeededAsync();
-        await using var _ = db;
+        var (_, service) = await CreateSeededAsync();
 
         var application = await service.GetApplicationAsync("one", CancellationToken.None);
 
@@ -95,8 +103,7 @@ public sealed class TelemetryDashboardServiceTests
     [Fact]
     public async Task Application_view_returns_null_for_unknown_slug()
     {
-        var (db, service) = await CreateSeededAsync();
-        await using var _ = db;
+        var (_, service) = await CreateSeededAsync();
 
         var application = await service.GetApplicationAsync("missing", CancellationToken.None);
 
@@ -106,8 +113,7 @@ public sealed class TelemetryDashboardServiceTests
     [Fact]
     public async Task Errors_are_filtered_by_status_and_paginated()
     {
-        var (db, service) = await CreateSeededAsync();
-        await using var _ = db;
+        var (_, service) = await CreateSeededAsync();
 
         var resolved = await service.GetErrorsAsync(null, "resolved", null, null, null, null, 1, 25, CancellationToken.None);
         var open = await service.GetErrorsAsync(null, "open", null, null, null, null, 1, 25, CancellationToken.None);
@@ -124,8 +130,7 @@ public sealed class TelemetryDashboardServiceTests
     [Fact]
     public async Task Errors_are_filtered_by_search_and_version()
     {
-        var (db, service) = await CreateSeededAsync();
-        await using var _ = db;
+        var (_, service) = await CreateSeededAsync();
 
         var bySearch = await service.GetErrorsAsync(null, null, "timeout", null, null, null, 1, 25, CancellationToken.None);
         var byVersion = await service.GetErrorsAsync(null, null, null, "2.0", null, null, 1, 25, CancellationToken.None);
@@ -141,8 +146,7 @@ public sealed class TelemetryDashboardServiceTests
     [Fact]
     public async Task Installations_are_filtered_by_country_and_version()
     {
-        var (db, service) = await CreateSeededAsync();
-        await using var _ = db;
+        var (_, service) = await CreateSeededAsync();
 
         var algerian = await service.GetInstallationsAsync("one", null, "DZ", null, null, null, 0, 1, 25, CancellationToken.None);
         var version15 = await service.GetInstallationsAsync("one", "1.5", null, null, null, null, 0, 1, 25, CancellationToken.None);
@@ -156,18 +160,21 @@ public sealed class TelemetryDashboardServiceTests
     [Fact]
     public async Task Error_details_include_recent_occurrences()
     {
-        var (db, service) = await CreateSeededAsync();
-        await using var _ = db;
+        var (factory, service) = await CreateSeededAsync();
 
-        var group = db.ErrorGroups.Single(x => x.Fingerprint == "aaa");
-        var details = await service.GetErrorAsync("one", group.Id, CancellationToken.None);
+        Guid groupId;
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            groupId = db.ErrorGroups.Single(x => x.Fingerprint == "aaa").Id;
+        }
+        var details = await service.GetErrorAsync("one", groupId, CancellationToken.None);
 
         Assert.NotNull(details);
         Assert.Equal(2, details.Occurrences);
         Assert.Single(details.RecentOccurrences);
         Assert.False(details.IsResolved);
 
-        var missing = await service.GetErrorAsync("two", group.Id, CancellationToken.None);
+        var missing = await service.GetErrorAsync("two", groupId, CancellationToken.None);
         Assert.Null(missing);
     }
 }

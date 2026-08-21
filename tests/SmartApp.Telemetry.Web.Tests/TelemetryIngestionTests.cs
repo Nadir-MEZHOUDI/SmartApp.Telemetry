@@ -8,15 +8,24 @@ namespace SmartApp.Telemetry.Web.Tests;
 
 public sealed class TelemetryIngestionTests
 {
-    private static async Task<(TelemetryDbContext Db, TelemetryIngestionService Service)> CreateServiceAsync()
+    private sealed class TestFactory(DbContextOptions<TelemetryDbContext> options) : IDbContextFactory<TelemetryDbContext>
+    {
+        public TelemetryDbContext CreateDbContext() => new(options);
+        public Task<TelemetryDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default) => Task.FromResult(CreateDbContext());
+    }
+
+    private static async Task<(IDbContextFactory<TelemetryDbContext> Factory, TelemetryIngestionService Service)> CreateServiceAsync()
     {
         var options = new DbContextOptionsBuilder<TelemetryDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        var db = new TelemetryDbContext(options);
-        db.Applications.Add(new Application { Id = Guid.NewGuid(), Name = "One", Slug = "one" });
-        await db.SaveChangesAsync();
-        return (db, new TelemetryIngestionService(db));
+        var factory = new TestFactory(options);
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            db.Applications.Add(new Application { Id = Guid.NewGuid(), Name = "One", Slug = "one" });
+            await db.SaveChangesAsync();
+        }
+        return (factory, new TelemetryIngestionService(factory));
     }
 
     private static TelemetryEventRequest Event(string? eventName = "app_started", JsonElement? properties = null) =>
@@ -27,8 +36,7 @@ public sealed class TelemetryIngestionTests
     [Fact]
     public async Task Events_reject_unknown_event_names()
     {
-        var (db, service) = await CreateServiceAsync();
-        await using var _ = db;
+        var (_, service) = await CreateServiceAsync();
 
         var result = await service.IngestEventsAsync([Event("custom_event")], null, CancellationToken.None);
 
@@ -39,8 +47,7 @@ public sealed class TelemetryIngestionTests
     [Fact]
     public async Task Events_reject_unknown_applications()
     {
-        var (db, service) = await CreateServiceAsync();
-        await using var _ = db;
+        var (_, service) = await CreateServiceAsync();
 
         var result = await service.IngestEventsAsync([Event() with { Application = "missing" }], null, CancellationToken.None);
 
@@ -51,8 +58,7 @@ public sealed class TelemetryIngestionTests
     [Fact]
     public async Task Events_reject_empty_and_oversized_batches()
     {
-        var (db, service) = await CreateServiceAsync();
-        await using var _ = db;
+        var (_, service) = await CreateServiceAsync();
 
         var empty = await service.IngestEventsAsync([], null, CancellationToken.None);
         var oversized = await service.IngestEventsAsync(Enumerable.Repeat(Event(), 51).ToArray(), null, CancellationToken.None);
@@ -64,8 +70,7 @@ public sealed class TelemetryIngestionTests
     [Fact]
     public async Task Events_reject_too_many_properties()
     {
-        var (db, service) = await CreateServiceAsync();
-        await using var _ = db;
+        var (_, service) = await CreateServiceAsync();
 
         var properties = string.Join(',', Enumerable.Range(0, 31).Select(index => $"\"k{index}\":1"));
         var result = await service.IngestEventsAsync([Event(properties: Json($"{{{properties}}}"))], null, CancellationToken.None);
@@ -77,8 +82,7 @@ public sealed class TelemetryIngestionTests
     [Fact]
     public async Task Events_reject_oversized_string_properties()
     {
-        var (db, service) = await CreateServiceAsync();
-        await using var _ = db;
+        var (_, service) = await CreateServiceAsync();
 
         var oversized = new string('a', 2_001);
         var result = await service.IngestEventsAsync(
@@ -91,8 +95,7 @@ public sealed class TelemetryIngestionTests
     [Fact]
     public async Task Events_reject_deeply_nested_properties()
     {
-        var (db, service) = await CreateServiceAsync();
-        await using var _ = db;
+        var (_, service) = await CreateServiceAsync();
 
         var nested = string.Concat(Enumerable.Repeat("{\"n\":", 10)) + "1" + new string('}', 10);
         var result = await service.IngestEventsAsync([Event(properties: Json(nested))], null, CancellationToken.None);
@@ -104,8 +107,7 @@ public sealed class TelemetryIngestionTests
     [Fact]
     public async Task Errors_reject_oversized_additional_context()
     {
-        var (db, service) = await CreateServiceAsync();
-        await using var _ = db;
+        var (_, service) = await CreateServiceAsync();
 
         var oversized = new string('b', 2_001);
         var request = new ExceptionTelemetryRequest(
@@ -120,8 +122,7 @@ public sealed class TelemetryIngestionTests
     [Fact]
     public async Task Heartbeat_rejects_unknown_applications_and_accepts_known_ones()
     {
-        var (db, service) = await CreateServiceAsync();
-        await using var _ = db;
+        var (factory, service) = await CreateServiceAsync();
 
         var installationId = Guid.CreateVersion7();
         var unknown = await service.HeartbeatAsync(
@@ -132,6 +133,7 @@ public sealed class TelemetryIngestionTests
 
         Assert.False(unknown.Accepted);
         Assert.True(accepted.Accepted);
+        await using var db = await factory.CreateDbContextAsync();
         var installation = Assert.Single(db.Installations);
         Assert.Equal(installationId, installation.InstallationId);
         Assert.Equal("DZ", installation.CountryCode);
@@ -141,8 +143,7 @@ public sealed class TelemetryIngestionTests
     [Fact]
     public async Task Resolved_errors_become_regressed_when_they_recur()
     {
-        var (db, service) = await CreateServiceAsync();
-        await using var _ = db;
+        var (factory, service) = await CreateServiceAsync();
 
         var installationId = Guid.CreateVersion7();
         var request = new ExceptionTelemetryRequest(
@@ -152,25 +153,37 @@ public sealed class TelemetryIngestionTests
         var ingested = await service.IngestErrorsAsync([request], null, CancellationToken.None);
         Assert.True(ingested.Accepted);
 
-        var group = Assert.Single(db.ErrorGroups);
-        Assert.False(group.IsResolved);
-        Assert.False(group.IsRegressed);
+        Guid groupId;
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            var group = Assert.Single(db.ErrorGroups);
+            Assert.False(group.IsResolved);
+            Assert.False(group.IsRegressed);
+            groupId = group.Id;
+        }
 
-        await service.MarkErrorResolvedAsync(group.Id, "2.0", CancellationToken.None);
-        Assert.True(group.IsResolved);
-        Assert.False(group.IsRegressed);
+        await service.MarkErrorResolvedAsync(groupId, "2.0", CancellationToken.None);
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            var group = Assert.Single(db.ErrorGroups);
+            Assert.True(group.IsResolved);
+            Assert.False(group.IsRegressed);
+        }
 
         await service.IngestErrorsAsync([request with { Timestamp = DateTimeOffset.UtcNow.AddMinutes(1) }], null, CancellationToken.None);
 
-        Assert.False(group.IsResolved);
-        Assert.True(group.IsRegressed);
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            var group = Assert.Single(db.ErrorGroups);
+            Assert.False(group.IsResolved);
+            Assert.True(group.IsRegressed);
+        }
     }
 
     [Fact]
     public async Task New_error_groups_are_counted_from_the_batch_without_per_occurrence_queries()
     {
-        var (db, service) = await CreateServiceAsync();
-        await using var _ = db;
+        var (factory, service) = await CreateServiceAsync();
 
         var firstInstallation = Guid.CreateVersion7();
         var secondInstallation = Guid.CreateVersion7();
@@ -190,6 +203,7 @@ public sealed class TelemetryIngestionTests
         var result = await service.IngestErrorsAsync(requests, null, CancellationToken.None);
 
         Assert.True(result.Accepted);
+        await using var db = await factory.CreateDbContextAsync();
         var group = Assert.Single(db.ErrorGroups);
         Assert.Equal(3, group.TotalOccurrences);
         Assert.Equal(2, group.AffectedInstallations);

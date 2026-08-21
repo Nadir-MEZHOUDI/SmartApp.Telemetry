@@ -7,6 +7,12 @@ namespace SmartApp.Telemetry.Web.Tests;
 
 public sealed class TelemetryRulesTests
 {
+    private sealed class TestFactory(DbContextOptions<TelemetryDbContext> options) : IDbContextFactory<TelemetryDbContext>
+    {
+        public TelemetryDbContext CreateDbContext() => new(options);
+        public Task<TelemetryDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default) => Task.FromResult(CreateDbContext());
+    }
+
     [Fact]
     public void Fingerprint_ignores_line_numbers()
     {
@@ -32,13 +38,16 @@ public sealed class TelemetryRulesTests
         var options = new DbContextOptionsBuilder<TelemetryDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        await using var db = new TelemetryDbContext(options);
-        db.Applications.AddRange(
-            new Application { Id = Guid.NewGuid(), Name = "One", Slug = "one" },
-            new Application { Id = Guid.NewGuid(), Name = "Two", Slug = "two" });
-        await db.SaveChangesAsync();
+        var factory = new TestFactory(options);
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            db.Applications.AddRange(
+                new Application { Id = Guid.NewGuid(), Name = "One", Slug = "one" },
+                new Application { Id = Guid.NewGuid(), Name = "Two", Slug = "two" });
+            await db.SaveChangesAsync();
+        }
 
-        var service = new TelemetryIngestionService(db);
+        var service = new TelemetryIngestionService(factory);
         var installationId = Guid.CreateVersion7();
         var result = await service.IngestEventsAsync(
         [
@@ -46,8 +55,9 @@ public sealed class TelemetryRulesTests
         ], "DZ", CancellationToken.None);
 
         Assert.True(result.Accepted);
-        Assert.Single(db.TelemetryEvents.Where(x => x.ApplicationId == db.Applications.Single(x => x.Slug == "one").Id));
-        Assert.Empty(db.TelemetryEvents.Where(x => x.ApplicationId == db.Applications.Single(x => x.Slug == "two").Id));
+        await using var assertDb = await factory.CreateDbContextAsync();
+        Assert.Single(assertDb.TelemetryEvents.Where(x => x.ApplicationId == assertDb.Applications.Single(x => x.Slug == "one").Id));
+        Assert.Empty(assertDb.TelemetryEvents.Where(x => x.ApplicationId == assertDb.Applications.Single(x => x.Slug == "two").Id));
     }
 
     [Fact]
@@ -56,11 +66,14 @@ public sealed class TelemetryRulesTests
         var options = new DbContextOptionsBuilder<TelemetryDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        await using var db = new TelemetryDbContext(options);
-        db.Applications.Add(new Application { Id = Guid.NewGuid(), Name = "One", Slug = "one" });
-        await db.SaveChangesAsync();
+        var factory = new TestFactory(options);
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            db.Applications.Add(new Application { Id = Guid.NewGuid(), Name = "One", Slug = "one" });
+            await db.SaveChangesAsync();
+        }
 
-        var service = new TelemetryIngestionService(db);
+        var service = new TelemetryIngestionService(factory);
         var firstInstallation = Guid.CreateVersion7();
         var secondInstallation = Guid.CreateVersion7();
         var first = new ExceptionTelemetryRequest(
@@ -70,9 +83,10 @@ public sealed class TelemetryRulesTests
         var result = await service.IngestErrorsAsync([first, second], "DZ", CancellationToken.None);
 
         Assert.True(result.Accepted);
-        Assert.Single(db.ErrorGroups);
-        Assert.Equal(2, db.ErrorGroups.Single().TotalOccurrences);
-        Assert.Equal(2, db.ErrorGroups.Single().AffectedInstallations);
-        Assert.All(db.ErrorOccurrences, occurrence => Assert.DoesNotContain("Password=", occurrence.Message, StringComparison.Ordinal));
+        await using var assertDb = await factory.CreateDbContextAsync();
+        Assert.Single(assertDb.ErrorGroups);
+        Assert.Equal(2, assertDb.ErrorGroups.Single().TotalOccurrences);
+        Assert.Equal(2, assertDb.ErrorGroups.Single().AffectedInstallations);
+        Assert.All(assertDb.ErrorOccurrences, occurrence => Assert.DoesNotContain("Password=", occurrence.Message, StringComparison.Ordinal));
     }
 }

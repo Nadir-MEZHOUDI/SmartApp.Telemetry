@@ -3,9 +3,11 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Serilog;
 using SmartApp.Telemetry.Infrastructure;
 using SmartApp.Telemetry.Web;
@@ -35,9 +37,9 @@ var exposeOpenApi = builder.Environment.IsDevelopment() || builder.Configuration
 var secureCookies = builder.Configuration.GetValue("Security:SecureCookies", !builder.Environment.IsDevelopment());
 
 if (useInMemory)
-    builder.Services.AddDbContext<TelemetryDbContext>(options => options.UseInMemoryDatabase("telemetry-tests"));
+    builder.Services.AddDbContextFactory<TelemetryDbContext>(options => options.UseInMemoryDatabase("telemetry-tests"));
 else
-    builder.Services.AddDbContext<TelemetryDbContext>(options => options.UseNpgsql(connectionString));
+    builder.Services.AddDbContextFactory<TelemetryDbContext>(options => options.UseNpgsql(connectionString));
 
 builder.Services.AddScoped<TelemetryIngestionService>();
 builder.Services.AddScoped<TelemetryDashboardService>();
@@ -61,7 +63,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<TelemetryApiClient>();
 builder.Services.AddScoped<DashboardState>();
-builder.Services.AddHealthChecks().AddDbContextCheck<TelemetryDbContext>();
+builder.Services.AddHealthChecks().AddCheck<TelemetryDbContextHealthCheck>("TelemetryDbContext");
 builder.Services.AddOpenApi();
 builder.Services.AddRateLimiter(options =>
 {
@@ -102,7 +104,8 @@ if (!app.Environment.IsDevelopment())
 
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<TelemetryDbContext>();
+    var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<TelemetryDbContext>>();
+    await using var db = await factory.CreateDbContextAsync();
     if (useInMemory) await db.Database.EnsureCreatedAsync();
     else await db.Database.MigrateAsync();
 }
@@ -223,5 +226,22 @@ namespace SmartApp.Telemetry.Web
 
         public static void Rejected(Microsoft.Extensions.Logging.ILogger logger, string path, string client) =>
             RejectedMessage(logger, path, client, null);
+    }
+
+    public sealed class TelemetryDbContextHealthCheck(IDbContextFactory<TelemetryDbContext> factory) : IHealthCheck
+    {
+        public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                await using var db = await factory.CreateDbContextAsync(cancellationToken);
+                var canConnect = await db.Database.CanConnectAsync(cancellationToken);
+                return canConnect ? HealthCheckResult.Healthy() : HealthCheckResult.Unhealthy("Cannot connect to telemetry database.");
+            }
+            catch (Exception ex)
+            {
+                return HealthCheckResult.Unhealthy("Telemetry database health check failed.", ex);
+            }
+        }
     }
 }

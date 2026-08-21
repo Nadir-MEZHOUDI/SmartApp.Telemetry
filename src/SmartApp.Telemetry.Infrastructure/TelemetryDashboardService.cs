@@ -6,10 +6,11 @@ using SmartApp.Telemetry.Core;
 
 namespace SmartApp.Telemetry.Infrastructure;
 
-public sealed class TelemetryDashboardService(TelemetryDbContext db)
+public sealed class TelemetryDashboardService(IDbContextFactory<TelemetryDbContext> factory)
 {
     public async Task<DashboardOverview> GetOverviewAsync(CancellationToken cancellationToken)
     {
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
         var now = DateTime.UtcNow;
         var today = now.Date;
         var apps = await db.Applications.AsNoTracking().OrderBy(x => x.Name).ToListAsync(cancellationToken);
@@ -51,6 +52,7 @@ public sealed class TelemetryDashboardService(TelemetryDbContext db)
 
     public async Task<DashboardApplication?> GetApplicationAsync(string slug, CancellationToken cancellationToken)
     {
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
         var normalizedSlug = slug.Trim().ToLowerInvariant();
         var application = await db.Applications.AsNoTracking().SingleOrDefaultAsync(
             x => x.Slug == normalizedSlug,
@@ -58,7 +60,7 @@ public sealed class TelemetryDashboardService(TelemetryDbContext db)
         if (application is null) return null;
 
         var now = DateTime.UtcNow;
-        var summary = await BuildSummaryAsync(application, now, cancellationToken);
+        var summary = await BuildSummaryAsync(db, application, now, cancellationToken);
 
         var activityRows = await db.TelemetryEvents.AsNoTracking()
             .Where(x => x.ApplicationId == application.Id && x.OccurredAt >= now.AddDays(-30))
@@ -74,11 +76,11 @@ public sealed class TelemetryDashboardService(TelemetryDbContext db)
             .Select(x => new ChartPoint(x.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), x.Installations))
             .ToList();
 
-        var versions = await CountGroupedAsync(application.Id, x => x.CurrentVersion, cancellationToken);
-        var countries = await CountGroupedAsync(application.Id, x => x.CountryCode, cancellationToken);
-        var operatingSystems = await CountGroupedAsync(application.Id, x => x.OperatingSystem, cancellationToken);
-        var architectures = await CountGroupedAsync(application.Id, x => x.Architecture, cancellationToken);
-        var languages = await CountGroupedAsync(application.Id, x => x.Language, cancellationToken);
+        var versions = await CountGroupedAsync(db, application.Id, x => x.CurrentVersion, cancellationToken);
+        var countries = await CountGroupedAsync(db, application.Id, x => x.CountryCode, cancellationToken);
+        var operatingSystems = await CountGroupedAsync(db, application.Id, x => x.OperatingSystem, cancellationToken);
+        var architectures = await CountGroupedAsync(db, application.Id, x => x.Architecture, cancellationToken);
+        var languages = await CountGroupedAsync(db, application.Id, x => x.Language, cancellationToken);
 
         var featureEvents = await db.TelemetryEvents.AsNoTracking()
             .Where(x => x.ApplicationId == application.Id && x.EventName == "feature_used" && x.OccurredAt >= now.AddDays(-90))
@@ -105,6 +107,7 @@ public sealed class TelemetryDashboardService(TelemetryDbContext db)
 
     public async Task<ErrorDetails?> GetErrorAsync(string slug, Guid errorId, CancellationToken cancellationToken)
     {
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
         var normalizedSlug = slug.Trim().ToLowerInvariant();
         var group = await db.ErrorGroups.AsNoTracking()
             .Join(db.Applications, error => error.ApplicationId, app => app.Id, (error, app) => new { error, app.Slug })
@@ -148,6 +151,7 @@ public sealed class TelemetryDashboardService(TelemetryDbContext db)
         int pageSize,
         CancellationToken cancellationToken)
     {
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
@@ -224,6 +228,7 @@ public sealed class TelemetryDashboardService(TelemetryDbContext db)
         int pageSize,
         CancellationToken cancellationToken)
     {
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
@@ -274,7 +279,7 @@ public sealed class TelemetryDashboardService(TelemetryDbContext db)
         return new DashboardInstallationPage(total, page, pageSize, items);
     }
 
-    private async Task<ApplicationSummary> BuildSummaryAsync(Application application, DateTime now, CancellationToken cancellationToken)
+    private static async Task<ApplicationSummary> BuildSummaryAsync(TelemetryDbContext db, Application application, DateTime now, CancellationToken cancellationToken)
     {
         var today = now.Date;
         var stats = await db.Installations.AsNoTracking()
@@ -300,7 +305,8 @@ public sealed class TelemetryDashboardService(TelemetryDbContext db)
             stats?.Active30 ?? 0);
     }
 
-    private async Task<List<CountItem>> CountGroupedAsync(
+    private static async Task<List<CountItem>> CountGroupedAsync(
+        TelemetryDbContext db,
         Guid applicationId,
         Expression<Func<Installation, string?>> selector,
         CancellationToken cancellationToken)

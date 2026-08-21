@@ -6,12 +6,13 @@ using SmartApp.Telemetry.Infrastructure;
 namespace SmartApp.Telemetry.Web.Services;
 
 public sealed class TelemetryApiClient(
-    TelemetryDbContext db,
+    IDbContextFactory<TelemetryDbContext> factory,
     TelemetryDashboardService dashboard,
     TelemetryIngestionService ingestion)
 {
     public async Task<IReadOnlyList<ApplicationListItem>> GetApplicationsAsync(CancellationToken cancellationToken = default)
     {
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
         var applications = await db.Applications.AsNoTracking()
             .OrderBy(x => x.Name)
             .Select(x => new ApplicationListItem(x.Id, x.Name, x.Slug, x.Description, x.IsEnabled, x.CreatedAt))

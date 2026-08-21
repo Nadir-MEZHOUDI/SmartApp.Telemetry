@@ -3,12 +3,13 @@ using SmartApp.Telemetry.Core;
 
 namespace SmartApp.Telemetry.Infrastructure;
 
-public sealed class TelemetryAggregationService(TelemetryDbContext db)
+public sealed class TelemetryAggregationService(IDbContextFactory<TelemetryDbContext> factory)
 {
     private const int DeleteChunkSize = 5_000;
 
     public async Task RebuildDailyStatsAsync(DateOnly targetDate, CancellationToken cancellationToken)
     {
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
         var start = targetDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
         var end = start.AddDays(1);
         var applicationIds = await db.Applications.AsNoTracking().Select(x => x.Id).ToListAsync(cancellationToken);
@@ -66,6 +67,7 @@ public sealed class TelemetryAggregationService(TelemetryDbContext db)
 
     public async Task DeleteExpiredAsync(int rawEventRetentionDays, int errorRetentionDays, CancellationToken cancellationToken)
     {
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
         var eventCutoff = DateTime.UtcNow.AddDays(-rawEventRetentionDays);
         var errorCutoff = DateTime.UtcNow.AddDays(-errorRetentionDays);
         var eventQuery = db.TelemetryEvents.Where(x => x.OccurredAt < eventCutoff);

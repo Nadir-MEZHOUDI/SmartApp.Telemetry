@@ -21,8 +21,9 @@ public static class ApiEndpoints
             docs = "/openapi/v1.json"
         }));
 
-        app.MapGet("/api/v1/applications", async (TelemetryDbContext db, CancellationToken cancellationToken) =>
+        app.MapGet("/api/v1/applications", async (IDbContextFactory<TelemetryDbContext> factory, CancellationToken cancellationToken) =>
         {
+            await using var db = await factory.CreateDbContextAsync(cancellationToken);
             var applications = await db.Applications.AsNoTracking().OrderBy(x => x.Name).ToListAsync(cancellationToken);
             var result = applications.Select(x => new { x.Id, x.Name, x.Slug, x.Description, x.IsEnabled, x.CreatedAt });
             return Results.Ok(result);
@@ -30,7 +31,7 @@ public static class ApiEndpoints
 
         app.MapPost("/api/v1/applications", async (
             CreateApplicationRequest request,
-            TelemetryDbContext db,
+            IDbContextFactory<TelemetryDbContext> factory,
             CancellationToken cancellationToken) =>
         {
             if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Slug))
@@ -39,6 +40,7 @@ public static class ApiEndpoints
             var slug = request.Slug.Trim().ToLowerInvariant();
             if (slug.Length > 100 || slug.Any(c => !(char.IsLetterOrDigit(c) || c is '-' or '_')))
                 return Results.BadRequest(new { error = "Slug may contain only letters, numbers, '-' and '_'." });
+            await using var db = await factory.CreateDbContextAsync(cancellationToken);
             if (await db.Applications.AnyAsync(x => x.Slug == slug, cancellationToken))
                 return Results.Conflict(new { error = "An application with this slug already exists." });
 

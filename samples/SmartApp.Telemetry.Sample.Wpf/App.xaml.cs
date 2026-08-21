@@ -9,10 +9,13 @@ public partial class App : Application
 
     public App()
     {
+        var endpoint = Environment.GetEnvironmentVariable("TELEMETRY_ENDPOINT") ?? "http://localhost:8091";
+        var application = Environment.GetEnvironmentVariable("TELEMETRY_APP") ?? "sample-wpf";
+
         Telemetry = TelemetryFactory.Create(options =>
         {
-            options.Application = "sample-wpf";
-            options.Endpoint = "http://localhost:8091";
+            options.Endpoint = endpoint;
+            options.Application = application;
             options.Version = "1.0.0";
             options.EnableAnalytics = true;
             options.EnableCrashReporting = true;
@@ -24,11 +27,6 @@ public partial class App : Application
         base.OnStartup(e);
 
         TelemetryExceptionHooks.AttachProcessWide(Telemetry);
-        DispatcherUnhandledException += (_, args) =>
-        {
-            Telemetry.TrackException(args.Exception);
-        };
-
         Telemetry.TrackAppStarted();
     }
 

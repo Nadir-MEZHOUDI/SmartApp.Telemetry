@@ -4,7 +4,7 @@ using SmartApp.Telemetry.Core;
 
 namespace SmartApp.Telemetry.Infrastructure;
 
-public sealed class TelemetryIngestionService(TelemetryDbContext db)
+public sealed class TelemetryIngestionService(IDbContextFactory<TelemetryDbContext> factory)
 {
     public async Task<(bool Accepted, string? Error)> IngestEventsAsync(
         IReadOnlyList<TelemetryEventRequest> requests,
@@ -20,14 +20,16 @@ public sealed class TelemetryIngestionService(TelemetryDbContext db)
             if (validationError is not null) return (false, validationError);
         }
 
-        var applications = await ResolveApplicationsAsync(requests.Select(x => x.Application), cancellationToken);
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+
+        var applications = await ResolveApplicationsAsync(db, requests.Select(x => x.Application), cancellationToken);
         if (applications.Count != requests.Select(x => x.Application).Distinct(StringComparer.OrdinalIgnoreCase).Count())
             return (false, "One or more applications are unknown or disabled.");
 
         foreach (var request in requests)
         {
             var application = applications[NormalizeSlug(request.Application)];
-            await UpsertInstallationAsync(application.Id, request.InstallationId, request.Context, request.Timestamp.UtcDateTime, countryCode, cancellationToken);
+            await UpsertInstallationAsync(db, application.Id, request.InstallationId, request.Context, request.Timestamp.UtcDateTime, countryCode, cancellationToken);
             db.TelemetryEvents.Add(new TelemetryEvent
             {
                 ApplicationId = application.Id,
@@ -58,7 +60,9 @@ public sealed class TelemetryIngestionService(TelemetryDbContext db)
             if (validationError is not null) return (false, validationError);
         }
 
-        var applications = await ResolveApplicationsAsync(requests.Select(x => x.Application), cancellationToken);
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+
+        var applications = await ResolveApplicationsAsync(db, requests.Select(x => x.Application), cancellationToken);
         if (applications.Count != requests.Select(x => x.Application).Distinct(StringComparer.OrdinalIgnoreCase).Count())
             return (false, "One or more applications are unknown or disabled.");
 
@@ -68,7 +72,7 @@ public sealed class TelemetryIngestionService(TelemetryDbContext db)
         {
             var application = applications[NormalizeSlug(request.Application)];
             var occurredAt = request.Timestamp.UtcDateTime;
-            await UpsertInstallationAsync(application.Id, request.InstallationId, request.Context, occurredAt, countryCode, cancellationToken);
+            await UpsertInstallationAsync(db, application.Id, request.InstallationId, request.Context, occurredAt, countryCode, cancellationToken);
 
             var message = TelemetryRules.Sanitise(request.Message, 10_000);
             var stackTrace = TelemetryRules.Sanitise(request.StackTrace, 30_000);
@@ -196,17 +200,19 @@ public sealed class TelemetryIngestionService(TelemetryDbContext db)
     {
         if (request.InstallationId == Guid.Empty || string.IsNullOrWhiteSpace(request.Application))
             return (false, "Application and InstallationId are required.");
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
         var application = await db.Applications.SingleOrDefaultAsync(
             x => x.Slug == NormalizeSlug(request.Application) && x.IsEnabled,
             cancellationToken);
         if (application is null) return (false, "Application is unknown or disabled.");
-        await UpsertInstallationAsync(application.Id, request.InstallationId, request.Context, request.Timestamp.UtcDateTime, countryCode, cancellationToken);
+        await UpsertInstallationAsync(db, application.Id, request.InstallationId, request.Context, request.Timestamp.UtcDateTime, countryCode, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         return (true, null);
     }
 
     public async Task MarkErrorResolvedAsync(Guid errorId, string? version, CancellationToken cancellationToken)
     {
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
         var group = await db.ErrorGroups.SingleOrDefaultAsync(x => x.Id == errorId, cancellationToken)
             ?? throw new KeyNotFoundException("Error group was not found.");
         group.IsResolved = true;
@@ -216,7 +222,7 @@ public sealed class TelemetryIngestionService(TelemetryDbContext db)
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task<Dictionary<string, Application>> ResolveApplicationsAsync(IEnumerable<string> slugs, CancellationToken cancellationToken)
+    private static async Task<Dictionary<string, Application>> ResolveApplicationsAsync(TelemetryDbContext db, IEnumerable<string> slugs, CancellationToken cancellationToken)
     {
         var normalized = slugs.Select(NormalizeSlug).Distinct(StringComparer.Ordinal).ToArray();
         var rows = await db.Applications
@@ -225,7 +231,8 @@ public sealed class TelemetryIngestionService(TelemetryDbContext db)
         return rows.ToDictionary(x => x.Slug, StringComparer.OrdinalIgnoreCase);
     }
 
-    private async Task UpsertInstallationAsync(
+    private static async Task UpsertInstallationAsync(
+        TelemetryDbContext db,
         Guid applicationId,
         Guid installationId,
         TelemetryContext? context,
