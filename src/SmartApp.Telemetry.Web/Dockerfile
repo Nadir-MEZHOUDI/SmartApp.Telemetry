@@ -14,6 +14,7 @@ ARG BUILD_CONFIGURATION=Release
 
 WORKDIR /src
 
+COPY ["Directory.Build.props", "."]
 COPY ["src/SmartApp.Telemetry.Web/SmartApp.Telemetry.Web.csproj", "src/SmartApp.Telemetry.Web/"]
 COPY ["src/SmartApp.Telemetry.Infrastructure/SmartApp.Telemetry.Infrastructure.csproj", "src/SmartApp.Telemetry.Infrastructure/"]
 COPY ["src/SmartApp.Telemetry.Core/SmartApp.Telemetry.Core.csproj", "src/SmartApp.Telemetry.Core/"]
