@@ -5,7 +5,7 @@ namespace SmartApp.Telemetry.Client;
 /// (HTTP status, bodies, queue failures) in its multiline TextBox.
 /// No-op in other hosts.
 /// </summary>
-public static class WpfLogBridge
+public static class MyLogger
 {
     public static Action<string>? Sink { get; set; }
 

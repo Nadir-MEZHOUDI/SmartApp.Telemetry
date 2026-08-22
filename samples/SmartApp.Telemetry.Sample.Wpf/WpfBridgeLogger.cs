@@ -11,6 +11,6 @@ internal sealed class WpfBridgeLogger : ILogger<TelemetryClient>
     {
         var msg = formatter(state, exception);
         var line = exception is null ? $"[{logLevel}] {msg}" : $"[{logLevel}] {msg} | {exception.GetType().Name}: {exception.Message}";
-        WpfLogBridge.Write(line);
+        MyLogger.Write(line);
     }
 }

@@ -1,9 +1,11 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text;
 using System.Windows;
 using System.Windows.Threading;
+
 using SmartApp.Telemetry.Client;
 
 namespace SmartApp.Telemetry.Sample.Wpf;
@@ -36,7 +38,7 @@ public partial class MainWindow : Window
         AppIdText.ToolTip = app.ApplicationName;
 
         // Bridge telemetry client internal logs -> multiline textbox
-        WpfLogBridge.Sink = msg => AppendLogRaw(msg);
+        MyLogger.Sink = AppendLogRaw;
 
         // Global exception hooks -> also log multiline
         Application.Current.DispatcherUnhandledException += OnDispatcherUnhandledException;
@@ -81,32 +83,47 @@ public partial class MainWindow : Window
     private async void OnFlushClicked(object sender, RoutedEventArgs e)
     {
         var sw = Stopwatch.StartNew();
-        LogLine($"[FLUSH] starting FlushAsync -> {((App)Application.Current).Endpoint} ...");
         try
         {
+            LogLine($"[FLUSH] starting FlushAsync -> {((App)Application.Current).Endpoint} ...");
             await telemetry.FlushAsync();
             sw.Stop();
-            LogLine($"[FLUSH] done in {sw.ElapsedMilliseconds} ms. See [RESPONSE]/[DROP]/[RETRY] lines above for HTTP result. If 202 Accepted, check portal /installations?application={((App)Application.Current).ApplicationName}");
-            if (sw.ElapsedMilliseconds < 50) LogLine("[FLUSH] hint: queue was empty or dropped (400 <500). Check [ENQUEUE] and [RESPONSE] lines for validation errors.");
+            LogLine(
+                $"[FLUSH] done in {sw.ElapsedMilliseconds} ms. See [RESPONSE]/[DROP]/[RETRY] lines above for HTTP result. If 202 Accepted, check portal /installations?application={((App)Application.Current).ApplicationName}");
+            if (sw.ElapsedMilliseconds < 50)
+                LogLine(
+                    "[FLUSH] hint: queue was empty or dropped (400 <500). Check [ENQUEUE] and [RESPONSE] lines for validation errors.");
         }
         catch (Exception ex)
         {
             sw.Stop();
             LogError($"[FLUSH] failed after {sw.ElapsedMilliseconds} ms", ex);
         }
+
     }
 
     private void OnEnabledChanged(object sender, RoutedEventArgs e)
     {
         var enabled = EnabledCheck.IsChecked == true;
-        try { telemetry.SetEnabled(enabled); } catch (Exception ex) { LogError("SetEnabled failed", ex); }
+        try
+        {
+            telemetry.SetEnabled(enabled);
+        }
+        catch (Exception ex)
+        {
+            LogError("SetEnabled failed", ex);
+        }
         LogLine($"Telemetry {(enabled ? "enabled" : "disabled")}.");
     }
 
     private void OnCustomEventClicked(object sender, RoutedEventArgs e)
     {
         var name = EventName.Text.Trim();
-        if (name.Length == 0) { LogLine("[TRACK] Event name is required."); return; }
+        if (name.Length == 0)
+        {
+            LogLine("[TRACK] Event name is required.");
+            return;
+        }
         var properties = ParseProperties(EventProperties.Text);
         try
         {
@@ -118,27 +135,37 @@ public partial class MainWindow : Window
 
     private void OnFeatureClicked(object sender, RoutedEventArgs e)
     {
-        try { telemetry.TrackFeatureUsed("ExportPdf"); LogLine("[TRACK] feature_used: ExportPdf -> queued"); }
+        try { telemetry.TrackFeatureUsed("ExportPdf");
+            LogLine("[TRACK] feature_used: ExportPdf -> queued"); }
         catch (Exception ex) { LogError("TrackFeatureUsed failed", ex); }
     }
 
     private void OnOperationSucceededClicked(object sender, RoutedEventArgs e)
     {
-        try { telemetry.TrackOperationSucceeded("Backup"); LogLine("[TRACK] operation_completed: Backup -> queued"); }
+        try { telemetry.TrackOperationSucceeded("Backup");
+            LogLine("[TRACK] operation_completed: Backup -> queued"); }
         catch (Exception ex) { LogError("TrackOperationSucceeded failed", ex); }
     }
 
     private void OnOperationFailedClicked(object sender, RoutedEventArgs e)
     {
         var ex = new TimeoutException("Simulated timeout.");
-        try { telemetry.TrackOperationFailed("ExportPdf", ex); LogLine($"[TRACK] operation_failed: ExportPdf + TimeoutException: {ex.Message} -> queued as error (POST /api/v1/telemetry/errors)"); }
+        try { telemetry.TrackOperationFailed("ExportPdf", ex);
+            LogLine($"[TRACK] operation_failed: ExportPdf + TimeoutException: {ex.Message} -> queued as error (POST /api/v1/telemetry/errors)"); }
         catch (Exception trackEx) { LogError("TrackOperationFailed failed", trackEx); }
     }
 
     private void OnAppStartedClicked(object sender, RoutedEventArgs e)
     {
-        try { telemetry.TrackAppStarted(); LogLine("[TRACK] app_started -> queued"); }
-        catch (Exception ex) { LogError("TrackAppStarted failed", ex); }
+        try
+        {
+            telemetry.TrackAppStarted();
+            LogLine("[TRACK] app_started -> queued");
+        }
+        catch (Exception ex)
+        {
+            LogError("TrackAppStarted failed", ex);
+        }
     }
 
     private void OnTrackExceptionClicked(object sender, RoutedEventArgs e)
@@ -146,8 +173,14 @@ public partial class MainWindow : Window
         try { throw new InvalidOperationException("Demo exception from the WPF test harness."); }
         catch (Exception exception)
         {
-            try { telemetry.TrackException(exception, new { source = "OnTrackExceptionClicked" }); }
-            catch (Exception trackEx) { LogError("TrackException failed", trackEx); }
+            try
+            {
+                telemetry.TrackException(exception, new { source = "OnTrackExceptionClicked" });
+            }
+            catch (Exception trackEx)
+            {
+                LogError("TrackException failed", trackEx);
+            }
             LogError("Tracked caught exception (will POST to /errors)", exception);
         }
     }
@@ -187,10 +220,10 @@ public partial class MainWindow : Window
         LogLine($"[DIAGNOSTICS] checking {endpoint}  AppId={application}  InstallationId={app.InstallationId}");
 
         var sb = new StringBuilder();
-        sb.AppendLine($"Endpoint: {endpoint}");
-        sb.AppendLine($"Application: {application}");
-        sb.AppendLine($"InstallationId: {app.InstallationId}");
-        sb.AppendLine($"Time: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Endpoint: {endpoint}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Application: {application}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"InstallationId: {app.InstallationId}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Time: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
         sb.AppendLine(new string('-', 48));
 
         await ProbeEndpointAsync(sb, endpoint, "/health", "Health");
@@ -211,7 +244,7 @@ public partial class MainWindow : Window
         sb.AppendLine("--- Hint ---");
         sb.AppendLine("docker compose => http://localhost:8091");
         sb.AppendLine("dotnet run => http://localhost:5000 + https://localhost:5001");
-        sb.AppendLine("If 8091 shows FAILED, run: docker compose up --build or set $env:TELEMETRY_ENDPOINT='http://localhost:5000'");
+        sb.AppendLine("If 8091 shows FAILED, run: docker compose up --build or change Endpoint in App.xaml.cs");
 
         DiagnosticsOutput.Text = sb.ToString();
         foreach (var line in sb.ToString().Split('\n')) LogLine(line.TrimEnd());
@@ -254,7 +287,7 @@ public partial class MainWindow : Window
         var candidates = new[] { "http://localhost:8091", "http://localhost:5000", "https://localhost:5001", "http://localhost:8080" };
         DiagnosticsOutput.Text = "Probing candidate ports...\n";
         var sb = new StringBuilder();
-        sb.AppendLine($"Probing {candidates.Length} endpoints at {DateTime.Now:HH:mm:ss}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Probing {candidates.Length} endpoints at {DateTime.Now:HH:mm:ss}");
         sb.AppendLine(new string('-', 48));
         foreach (var ep in candidates) await ProbeEndpointAsync(sb, ep, "/health", $"Health @ {ep}");
         DiagnosticsOutput.Text = sb.ToString();
@@ -274,9 +307,9 @@ public partial class MainWindow : Window
             var body = await response.Content.ReadAsStringAsync();
             var truncated = body.Length > 900 ? body[..900] + " …(truncated)" : body;
             var status = $"{(int)response.StatusCode} {response.StatusCode}";
-            sb.AppendLine($"{label}: GET {path}");
-            sb.AppendLine($"  -> {status} in {sw.ElapsedMilliseconds} ms");
-            sb.AppendLine($"  -> Body: {truncated}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"{label}: GET {path}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  -> {status} in {sw.ElapsedMilliseconds} ms");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  -> Body: {truncated}");
             sb.AppendLine();
             var logLine = $"[RESPONSE] GET {url} -> {status} {sw.ElapsedMilliseconds}ms body={(string.IsNullOrWhiteSpace(truncated) ? "(empty)" : truncated[..Math.Min(300, truncated.Length)])}";
             if (!response.IsSuccessStatusCode) LogError(logLine, null); else LogLine(logLine);
@@ -285,10 +318,10 @@ public partial class MainWindow : Window
         catch (HttpRequestException ex)
         {
             sw.Stop();
-            sb.AppendLine($"{label}: GET {path}");
-            sb.AppendLine($"  -> FAILED in {sw.ElapsedMilliseconds} ms: {ex.GetType().Name}: {ex.Message}");
-            if (ex.InnerException is not null) sb.AppendLine($"     Inner: {ex.InnerException.Message}");
-            sb.AppendLine($"  -> Is port wrong or server not running?");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"{label}: GET {path}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  -> FAILED in {sw.ElapsedMilliseconds} ms: {ex.GetType().Name}: {ex.Message}");
+            if (ex.InnerException is not null) sb.AppendLine(CultureInfo.InvariantCulture, $"     Inner: {ex.InnerException.Message}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  -> Is port wrong or server not running?");
             sb.AppendLine();
             LogError($"[RESPONSE] GET {url} FAILED HttpRequestException {sw.ElapsedMilliseconds}ms: {ex.Message} {(ex.InnerException is not null ? $"Inner: {ex.InnerException.Message}" : "")}", ex);
             return null;
@@ -296,8 +329,8 @@ public partial class MainWindow : Window
         catch (TaskCanceledException ex)
         {
             sw.Stop();
-            sb.AppendLine($"{label}: GET {path}");
-            sb.AppendLine($"  -> TIMEOUT after {sw.ElapsedMilliseconds} ms: {ex.Message}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"{label}: GET {path}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  -> TIMEOUT after {sw.ElapsedMilliseconds} ms: {ex.Message}");
             sb.AppendLine();
             LogError($"[RESPONSE] GET {url} TIMEOUT {sw.ElapsedMilliseconds}ms", ex);
             return null;
@@ -305,8 +338,8 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             sw.Stop();
-            sb.AppendLine($"{label}: GET {path}");
-            sb.AppendLine($"  -> ERROR: {ex.GetType().Name}: {ex.Message}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"{label}: GET {path}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  -> ERROR: {ex.GetType().Name}: {ex.Message}");
             sb.AppendLine();
             LogError($"[RESPONSE] GET {url} ERROR", ex);
             return null;
@@ -324,12 +357,12 @@ public partial class MainWindow : Window
             sw.Stop();
             var body = await response.Content.ReadAsStringAsync();
             var truncated = body.Length > 900 ? body[..900] + " …(truncated)" : body;
-            sb.AppendLine($"Ingestion probe: POST /api/v1/telemetry/events");
-            sb.AppendLine($"  -> {(int)response.StatusCode} {response.StatusCode} in {sw.ElapsedMilliseconds} ms");
-            sb.AppendLine($"  -> Body: {(string.IsNullOrWhiteSpace(truncated) ? "(empty — 202 Accepted is expected)" : truncated)}");
-            if (response.StatusCode == System.Net.HttpStatusCode.Accepted) sb.AppendLine($"  -> OK — check dashboard for 'diagnostics_probe'.");
-            else if ((int)response.StatusCode == 400) sb.AppendLine($"  -> 400: app unknown/disabled or validation failed.");
-            else if ((int)response.StatusCode == 429) sb.AppendLine($"  -> 429 Rate limited.");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Ingestion probe: POST /api/v1/telemetry/events");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  -> {(int)response.StatusCode} {response.StatusCode} in {sw.ElapsedMilliseconds} ms");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  -> Body: {(string.IsNullOrWhiteSpace(truncated) ? "(empty — 202 Accepted is expected)" : truncated)}");
+            if (response.StatusCode == System.Net.HttpStatusCode.Accepted) sb.AppendLine(CultureInfo.InvariantCulture, $"  -> OK — check dashboard for 'diagnostics_probe'.");
+            else if ((int)response.StatusCode == 400) sb.AppendLine(CultureInfo.InvariantCulture, $"  -> 400: app unknown/disabled or validation failed.");
+            else if ((int)response.StatusCode == 429) sb.AppendLine(CultureInfo.InvariantCulture, $"  -> 429 Rate limited.");
             sb.AppendLine();
             var level = response.IsSuccessStatusCode ? (Action<string>)LogLine : s => LogError(s, null);
             level($"[RESPONSE] POST {url} -> {(int)response.StatusCode} {response.StatusCode} {sw.ElapsedMilliseconds}ms body={(string.IsNullOrWhiteSpace(truncated) ? "(empty)" : truncated[..Math.Min(400, truncated.Length)])}");
@@ -337,7 +370,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             sw.Stop();
-            sb.AppendLine($"Ingestion probe: POST /api/v1/telemetry/events -> ERROR after {sw.ElapsedMilliseconds} ms: {ex.Message}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Ingestion probe: POST /api/v1/telemetry/events -> ERROR after {sw.ElapsedMilliseconds} ms: {ex.Message}");
             sb.AppendLine();
             LogError($"[RESPONSE] POST {url} probe ERROR", ex);
         }
@@ -349,7 +382,7 @@ public partial class MainWindow : Window
     {
         logBuffer.Clear();
         if (LogBox is not null) LogBox.Text = string.Empty;
-        WpfLogBridge.Write("[LOG] cleared.");
+        MyLogger.Write("[LOG] cleared.");
     }
 
     private void OnCopyLogClicked(object sender, RoutedEventArgs e)
@@ -366,13 +399,13 @@ public partial class MainWindow : Window
     private void LogLine(string message)
     {
         if (string.IsNullOrWhiteSpace(message)) { AppendLogRaw(string.Empty); return; }
-        var ts = DateTime.Now.ToString("HH:mm:ss.fff");
+        var ts = DateTime.Now.ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture);
         AppendLogRaw($"{ts}  {message}");
     }
 
     private void LogError(string context, Exception? ex)
     {
-        var ts = DateTime.Now.ToString("HH:mm:ss.fff");
+        var ts = DateTime.Now.ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture);
         if (ex is null) AppendLogRaw($"{ts}  [ERROR] {context}");
         else
         {
@@ -385,7 +418,7 @@ public partial class MainWindow : Window
 
     private void AppendLogRaw(string message)
     {
-        // always marshal to UI thread, handle re-entrancy from WpfLogBridge (background thread)
+        // always marshal to UI thread, handle re-entrancy from MyLogger (background thread)
         if (!Dispatcher.CheckAccess())
         {
             Dispatcher.BeginInvoke(() => AppendLogRaw(message));

@@ -34,5 +34,4 @@ dotnet run --project samples/SmartApp.Telemetry.Sample.Wpf
 ## Configuration
 
 Both samples send to `http://localhost:8091` by default. Change the `Endpoint` and `Application`
-values in the sample source to point at your own server and registered app slug, or override
-them at run time with the `TELEMETRY_ENDPOINT` and `TELEMETRY_APP` environment variables.
+values in the sample source to point at your own server and registered app slug.

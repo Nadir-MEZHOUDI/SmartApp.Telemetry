@@ -9,5 +9,40 @@
     <AnalysisMode>Recommended</AnalysisMode>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <CodeAnalysisTreatWarningsAsErrors>false</CodeAnalysisTreatWarningsAsErrors>
+    <Authors>Nadir MEZHOUDI</Authors>
+    <Company>SmartApp</Company>
+  </PropertyGroup>
+
+  <!--
+    A version that changes every minute rewrites obj\*.AssemblyInfo.cs on every build,
+    which invalidates CoreCompile and forces a full rebuild of every project. Keep the
+    date-based version for Release and a static one everywhere else.
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <!-- UTC date-based version -->
+    <Year>$([System.DateTime]::UtcNow.Year)</Year>
+    <Month>$([System.DateTime]::UtcNow.Month)</Month>
+    <Day>$([System.DateTime]::UtcNow.Day)</Day>
+    <Hour>$([System.DateTime]::UtcNow.Hour)</Hour>
+    <Minute>$([System.DateTime]::UtcNow.Minute)</Minute>
+
+    <Major>$([MSBuild]::Subtract($(Year), 2025))</Major>
+    <DayPart>$([MSBuild]::Multiply($(Day), 1440))</DayPart>
+    <HourPart>$([MSBuild]::Multiply($(Hour), 60))</HourPart>
+    <Patch>$([MSBuild]::Add($([MSBuild]::Add($(DayPart), $(HourPart))), $(Minute)))</Patch>
+    <FullVersion>$(Major).$(Month).$(Patch)</FullVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' != 'Release'">
+    <FullVersion>1.0.0</FullVersion>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Version>$(FullVersion)</Version>
+    <AssemblyVersion>$(FullVersion)</AssemblyVersion>
+    <FileVersion>$(FullVersion)</FileVersion>
+    <PackageVersion>$(FullVersion)</PackageVersion>
+    <InformationalVersion>$(FullVersion)</InformationalVersion>
+    <RestoreAdditionalProjectSources Condition="Exists('D:\Programming\LocalNuget')">$(RestoreAdditionalProjectSources);D:\Programming\LocalNuget</RestoreAdditionalProjectSources>
   </PropertyGroup>
 </Project>
