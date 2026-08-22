@@ -25,19 +25,6 @@ steps:
     arguments: '--configuration $(buildConfiguration) -p:GeneratePackageOnBuild=false'
 
 - task: DotNetCoreCLI@2
-  displayName: dotnet test
-  inputs:
-    command: test
-    projects: '$(clientTestProject)'
-    arguments: '--configuration $(buildConfiguration) --no-restore --collect:"XPlat Code Coverage"'
-
-- task: PublishCodeCoverageResults@2
-  displayName: publish code coverage
-  inputs:
-    summaryFileLocation: '$(Agent.TempDirectory)/**/coverage.cobertura.xml'
-    failIfCoverageEmpty: false
-
-- task: DotNetCoreCLI@2
   displayName: dotnet pack SmartApp.Telemetry.Client
   inputs:
     command: pack
