@@ -108,6 +108,31 @@ using (var scope = app.Services.CreateScope())
     await using var db = await factory.CreateDbContextAsync();
     if (useInMemory) await db.Database.EnsureCreatedAsync();
     else await db.Database.MigrateAsync();
+
+    // Seed sample apps so WPF/Console samples work out-of-box (log showed [] -> 400)
+    var seeds = new[]
+    {
+        new { Slug = "sample-wpf", Name = "Sample WPF", Description = "WPF test harness (auto-seeded)" },
+        new { Slug = "sample-console", Name = "Sample Console", Description = "Console sample (auto-seeded)" },
+    };
+    var changed = false;
+    foreach (var s in seeds)
+    {
+        if (!await db.Applications.AnyAsync(x => x.Slug == s.Slug))
+        {
+            db.Applications.Add(new SmartApp.Telemetry.Core.Application
+            {
+                Id = Guid.NewGuid(),
+                Slug = s.Slug,
+                Name = s.Name,
+                Description = s.Description,
+                IsEnabled = true,
+                CreatedAt = DateTime.UtcNow
+            });
+            changed = true;
+        }
+    }
+    if (changed) await db.SaveChangesAsync();
 }
 
 app.UseSerilogRequestLogging();

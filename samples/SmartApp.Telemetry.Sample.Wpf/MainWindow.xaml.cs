@@ -218,6 +218,37 @@ public partial class MainWindow : Window
         LogLine("[DIAGNOSTICS] done — see panel + above [RESPONSE] lines.");
     }
 
+    private async void OnCreateAppClicked(object sender, RoutedEventArgs e)
+    {
+        var app = (App)Application.Current;
+        var endpoint = app.Endpoint.TrimEnd('/');
+        var slug = app.ApplicationName.Trim().ToLowerInvariant();
+        var url = endpoint + "/api/v1/applications";
+        var payload = new { name = slug, slug, description = "Registered from WPF sample (one-click fix for 400)" };
+        LogLine($"[CREATE] POST {url}  slug='{slug}' ...");
+        try
+        {
+            using var resp = await DiagnosticsHttp.PostAsJsonAsync(url, payload);
+            var body = await resp.Content.ReadAsStringAsync();
+            var truncated = body.Length > 1500 ? body[..1500] + " …(truncated)" : body;
+            LogLine($"[RESPONSE] POST {url} -> {(int)resp.StatusCode} {resp.StatusCode} body={truncated}");
+            DiagnosticsOutput.Text = $"POST {url}\n-> {(int)resp.StatusCode} {resp.StatusCode}\n{truncated}";
+            if (resp.IsSuccessStatusCode)
+            {
+                LogLine($"[CREATE] SUCCESS — '{slug}' now exists. Click Flush to resend queued events (they were DROPPED before, so Track again then Flush).");
+            }
+            else if (resp.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                LogLine($"[CREATE] 409 Conflict — '{slug}' already exists. If still 400, check IsEnabled=false in DB or case mismatch.");
+            }
+            else if ((int)resp.StatusCode == 400)
+            {
+                LogError($"[CREATE] 400 — validation failed: {truncated}", null);
+            }
+        }
+        catch (Exception ex) { LogError($"[CREATE] POST {url} failed", ex); }
+    }
+
     private async void OnProbePortsClicked(object sender, RoutedEventArgs e)
     {
         var candidates = new[] { "http://localhost:8091", "http://localhost:5000", "https://localhost:5001", "http://localhost:8080" };

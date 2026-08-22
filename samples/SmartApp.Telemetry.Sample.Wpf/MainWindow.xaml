@@ -57,6 +57,8 @@
                             <Button Content="Check API status" Padding="12,6" Click="OnCheckApiStatusClicked" HorizontalAlignment="Left" />
                             <Button Content="Probe all ports" Padding="12,6" Margin="8,0,0,0" Click="OnProbePortsClicked" HorizontalAlignment="Left" />
                         </StackPanel>
+                        <Button Content="Create / Register App (fixes 400 unknown app)" Padding="12,6" Margin="0,0,0,8" HorizontalAlignment="Left"
+                                Click="OnCreateAppClicked" ToolTip="POST /api/v1/applications with current slug — fixes 'One or more applications are unknown or disabled.'" />
                         <Border BorderBrush="#33000000" BorderThickness="1" CornerRadius="4" Background="#FFF8F8F8">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" MaxHeight="220">
                                 <TextBox x:Name="DiagnosticsOutput" TextWrapping="Wrap" BorderThickness="0" Background="Transparent"
