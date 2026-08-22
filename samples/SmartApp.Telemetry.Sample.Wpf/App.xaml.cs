@@ -9,7 +9,7 @@ public partial class App : Application
 {
     public ITelemetryClient Telemetry { get; }
     public string Endpoint { get; }
-    public string ApplicationName { get; }
+    public string ApplicationName { get; } = "sample-wpf";
     public Guid InstallationId => Telemetry.InstallationId;
 
     public App()
@@ -19,8 +19,7 @@ public partial class App : Application
 #else
         Endpoint = "https://telemetry.smartappdz.org";
 #endif
-        ApplicationName = "sample-wpf";
-
+ 
         Telemetry = TelemetryFactory.Create(options =>
         {
             options.Endpoint = Endpoint;

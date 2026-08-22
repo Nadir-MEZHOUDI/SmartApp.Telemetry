@@ -10,7 +10,7 @@ using SmartApp.Telemetry.Client;
 
 namespace SmartApp.Telemetry.Sample.Wpf;
 
-public partial class MainWindow : Window
+public partial class MainWindow
 {
     private readonly ITelemetryClient telemetry;
     private static readonly HttpClient DiagnosticsHttp = new(new HttpClientHandler
