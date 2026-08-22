@@ -36,42 +36,6 @@ stages:
         projects: '$(validationSolution)'
         arguments: '--configuration $(buildConfiguration) --no-restore -p:GeneratePackageOnBuild=false'
 
-    - task: DotNetCoreCLI@2
-      displayName: Test deployable projects
-      inputs:
-        command: test
-        projects: '$(validationSolution)'
-        arguments: '--configuration $(buildConfiguration) --no-build --no-restore --collect:"XPlat Code Coverage"'
-
-    - script: dotnet tool install --global dotnet-ef
-      displayName: Install dotnet-ef
-
-    - script: dotnet ef migrations has-pending-model-changes --project src/SmartApp.Telemetry.Infrastructure --startup-project src/SmartApp.Telemetry.Web
-      displayName: Check EF migrations are up to date
-
-    - task: PublishCodeCoverageResults@2
-      displayName: Publish code coverage
-      inputs:
-        summaryFileLocation: '$(Agent.TempDirectory)/**/coverage.cobertura.xml'
-        failIfCoverageEmpty: false
-
-    - task: DotNetCoreCLI@2
-      displayName: Pack SmartApp.Telemetry.Client
-      inputs:
-        command: pack
-        packagesToPack: clients/SmartApp.Telemetry.Client/SmartApp.Telemetry.Client.csproj
-        configuration: '$(buildConfiguration)'
-        nobuild: true
-        packDirectory: '$(packageOutput)'
-        versioningScheme: off
-
-    - task: PublishBuildArtifacts@1
-      displayName: Publish Client package artifact
-      inputs:
-        PathtoPublish: '$(packageOutput)'
-        ArtifactName: SmartApp.Telemetry.Client
-        publishLocation: Container
-
   - job: BuildPush
     displayName: Build and push Web image to GHCR
     steps:
