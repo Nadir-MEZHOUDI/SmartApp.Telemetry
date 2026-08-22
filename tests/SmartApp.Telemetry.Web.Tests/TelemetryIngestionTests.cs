@@ -38,10 +38,20 @@ public sealed class TelemetryIngestionTests
     {
         var (_, service) = await CreateServiceAsync();
 
-        var result = await service.IngestEventsAsync([Event("custom_event")], null, CancellationToken.None);
+        // "custom_event" is now allowed via regex ^[a-z][a-z0-9_\.\-]{1,99}$ (fix for WPF sample user_action/burst_event)
+        // invalid names still rejected — e.g. uppercase / spaces / special chars
+        var result = await service.IngestEventsAsync([Event("INVALID EVENT!")], null, CancellationToken.None);
 
         Assert.False(result.Accepted);
         Assert.Contains("not allowed", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Events_accept_custom_event_names()
+    {
+        var (_, service) = await CreateServiceAsync();
+        var result = await service.IngestEventsAsync([Event("custom_event")], null, CancellationToken.None);
+        Assert.True(result.Accepted);
     }
 
     [Fact]

@@ -137,13 +137,19 @@ curl -X POST http://localhost:8091/api/v1/applications `
 ## Repository layout
 
 ```
-src/SmartApp.Telemetry.Core          domain, validation, fingerprinting, sanitization
-src/SmartApp.Telemetry.Infrastructure EF Core, PostgreSQL, ingestion/dashboard services, maintenance
-src/SmartApp.Telemetry.Web           ASP.NET Core API + Blazor dashboard
-clients/SmartApp.Telemetry.Client    reusable NuGet SDK
-samples/                             ready-to-run sample applications
-tests/                               xUnit tests
+src/SmartApp.Telemetry.Core            domain, validation, fingerprinting, sanitization
+src/SmartApp.Telemetry.Infrastructure  EF Core, PostgreSQL, ingestion/dashboard services, maintenance
+src/SmartApp.Telemetry.Web             ASP.NET Core API + Blazor dashboard (single deployable)
+clients/SmartApp.Telemetry.Client      reusable NuGet SDK (WPF/WinForms/ASP.NET Core)
+samples/SmartApp.Telemetry.Sample.Console  console sample
+samples/SmartApp.Telemetry.Sample.Wpf     WPF sample with one-click Register App
+tests/SmartApp.Telemetry.Web.Tests     API / ingestion / dashboard / aggregation tests
+tests/SmartApp.Telemetry.Client.Tests  client batching / queue / sanitization tests
+docs/                                  getting-started, integration, configuration, deployment
 ```
+
+> `CHIFA.Server` has been removed — the platform is now a modular monolith with a single
+> deployable `SmartApp.Telemetry.Web`. See `Telemetry.sln` for the current project list.
 
 ## Documentation
 

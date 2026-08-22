@@ -15,6 +15,11 @@
         <div class="view-kicker">choose a row for its profile</div>
     </div>
 
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="error-message" style="border-left-color: var(--green); background:#e2eee8; color:#1e4a3a;">@successMessage</div>
+    }
+
     @if (loading)
     {
         <div class="panel loading-state">Loading application profiles…</div>
@@ -25,6 +30,11 @@
     }
     else if (Slug is null && overview is not null)
     {
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:12px; flex-wrap:wrap;">
+            <div style="color:var(--muted); font:11px ui-monospace,monospace;">@overview.Applications.Count application@(overview.Applications.Count==1?"":"s") · <span class="mono">@overview.TotalInstallations.ToString("N0") total installs</span></div>
+            <button class="button" @onclick="OpenAdd">+ Add application</button>
+        </div>
+
         <div class="table-wrap">
             <table>
                 <thead>
@@ -35,27 +45,44 @@
                         <th>Today</th>
                         <th>7 days</th>
                         <th>30 days</th>
+                        <th style="width:170px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var app in overview.Applications)
                     {
-                        <tr class="clickable" @onclick="() => Open(app.Slug)">
-                            <td><strong>@app.Name</strong></td>
-                            <td class="mono">@app.Slug</td>
-                            <td>@app.Installations.ToString("N0")</td>
-                            <td>@app.ActiveToday.ToString("N0")</td>
-                            <td>@app.Active7Days.ToString("N0")</td>
-                            <td>@app.Active30Days.ToString("N0")</td>
+                        <tr class="clickable">
+                            <td @onclick="() => Open(app.Slug)"><strong>@app.Name</strong>@if (!app.IsEnabled){ <span class="status-pill" style="margin-left:6px; padding:2px 6px; font-size:9px;">disabled</span> }</td>
+                            <td class="mono" @onclick="() => Open(app.Slug)">@app.Slug</td>
+                            <td @onclick="() => Open(app.Slug)">@app.Installations.ToString("N0")</td>
+                            <td @onclick="() => Open(app.Slug)">@app.ActiveToday.ToString("N0")</td>
+                            <td @onclick="() => Open(app.Slug)">@app.Active7Days.ToString("N0")</td>
+                            <td @onclick="() => Open(app.Slug)">@app.Active30Days.ToString("N0")</td>
+                            <td>
+                                <div style="display:flex; gap:6px;">
+                                    <button class="button ghost" style="min-height:28px; padding:4px 8px; font-size:11px;" @onclick="() => OpenEdit(app.Slug, app.Name, null, app.IsEnabled)" @onclick:stopPropagation="true">Edit</button>
+                                    <button class="button ghost" style="min-height:28px; padding:4px 8px; font-size:11px; color:var(--coral); border-color:#e8c4bc;" @onclick="() => OpenDelete(app.Slug, app.Name)" @onclick:stopPropagation="true">Delete</button>
+                                </div>
+                            </td>
                         </tr>
                     }
                 </tbody>
             </table>
+            @if (overview.Applications.Count == 0)
+            {
+                <div class="empty">No applications yet — click <strong>Add application</strong> to create the first.</div>
+            }
         </div>
     }
     else if (profile is not null)
     {
         var summary = profile.Summary;
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+            <button class="button ghost" @onclick="() => OpenEdit(summary.Slug, summary.Name, null, summary.IsEnabled)">Edit app</button>
+            <button class="button ghost" style="color:var(--coral); border-color:#e8c4bc;" @onclick="() => OpenDelete(summary.Slug, summary.Name)">Delete app</button>
+            <button class="button ghost" @onclick='() => Navigation.NavigateTo("/applications")'>Back to list</button>
+        </div>
+
         <div class="metric-grid">
             <MetricCard Label="Installations" Value="@summary.Installations" Tone="accent" />
             <MetricCard Label="Active today" Value="@summary.ActiveToday" Tone="blue" />
@@ -67,7 +94,7 @@
             <div class="panel">
                 <div class="panel-head">
                     <h3>@summary.Name</h3>
-                    <small class="mono">@summary.Slug</small>
+                    <small class="mono">@summary.Slug @(summary.IsEnabled ? "" : "· disabled")</small>
                 </div>
                 <DistributionBars Items="@profile.Versions" EmptyMessage="No version data" />
             </div>
@@ -160,6 +187,87 @@
     }
 </section>
 
+@if (showAdd)
+{
+    <div class="modal-backdrop" @onclick="CloseAdd">
+        <div class="modal" @onclick:stopPropagation="true">
+            <div class="dialog-top">
+                <div>
+                    <div class="eyebrow">Add</div>
+                    <h2>New application</h2>
+                </div>
+                <button class="icon-button" @onclick="CloseAdd">✕</button>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(modalError))
+            {
+                <div class="error-message" style="margin:14px 0;">@modalError</div>
+            }
+            <div style="display:grid; gap:10px; margin-top:14px;">
+                <div class="field"><label>Name *</label><input @bind="formName" placeholder="My App" maxlength="200" /></div>
+                <div class="field"><label>Slug * <span style="font-weight:400; text-transform:none; letter-spacing:0;">lowercase, letters/numbers/-/_</span></label><input @bind="formSlug" placeholder="my-app" maxlength="100" /></div>
+                <div class="field"><label>Description</label><input @bind="formDescription" placeholder="optional" /></div>
+            </div>
+            <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
+                <button class="button ghost" @onclick="CloseAdd" disabled="@submitting">Cancel</button>
+                <button class="button" @onclick="SubmitAdd" disabled="@submitting">@(submitting ? "Creating…" : "Create")</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showEdit)
+{
+    <div class="modal-backdrop" @onclick="CloseEdit">
+        <div class="modal" @onclick:stopPropagation="true">
+            <div class="dialog-top">
+                <div>
+                    <div class="eyebrow">Edit</div>
+                    <h2>@formSlugEdit</h2>
+                </div>
+                <button class="icon-button" @onclick="CloseEdit">✕</button>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(modalError))
+            {
+                <div class="error-message" style="margin:14px 0;">@modalError</div>
+            }
+            <div style="display:grid; gap:10px; margin-top:14px;">
+                <div class="field"><label>Slug (immutable)</label><input value="@formSlugEdit" disabled /></div>
+                <div class="field"><label>Name *</label><input @bind="formName" maxlength="200" /></div>
+                <div class="field"><label>Description</label><input @bind="formDescription" /></div>
+                <label style="display:flex; gap:8px; align-items:center; margin-top:4px; font-size:12px;"><input type="checkbox" @bind="formEnabled" /> Enabled (if disabled, ingestion returns 400)</label>
+            </div>
+            <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
+                <button class="button ghost" @onclick="CloseEdit" disabled="@submitting">Cancel</button>
+                <button class="button" @onclick="SubmitEdit" disabled="@submitting">@(submitting ? "Saving…" : "Save")</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showDelete)
+{
+    <div class="modal-backdrop" @onclick="CloseDelete">
+        <div class="modal" @onclick:stopPropagation="true">
+            <div class="dialog-top">
+                <div>
+                    <div class="eyebrow" style="color:var(--coral);">Delete</div>
+                    <h2>@formName</h2>
+                </div>
+                <button class="icon-button" @onclick="CloseDelete">✕</button>
+            </div>
+            <p style="margin:14px 0 8px; font-size:13px; line-height:1.5;">Delete <strong class="mono">@formSlugEdit</strong> and <strong>all</strong> its installations, events, error groups and daily stats? This cannot be undone.</p>
+            @if (!string.IsNullOrWhiteSpace(modalError))
+            {
+                <div class="error-message" style="margin:8px 0;">@modalError</div>
+            }
+            <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
+                <button class="button ghost" @onclick="CloseDelete" disabled="@submitting">Cancel</button>
+                <button class="button" style="background:var(--coral); border-color:var(--coral);" @onclick="SubmitDelete" disabled="@submitting">@(submitting ? "Deleting…" : "Delete permanently")</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public string? Slug { get; set; }
 
@@ -167,6 +275,13 @@
     private DashboardApplication? profile;
     private bool loading = true;
     private string? error;
+    private string? successMessage;
+
+    private bool showAdd, showEdit, showDelete;
+    private string formName = "", formSlug = "", formDescription = "", formSlugEdit = "";
+    private bool formEnabled = true;
+    private string modalError = "";
+    private bool submitting = false;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -212,7 +327,77 @@
     private void OpenErrors() => Navigation.NavigateTo($"/errors?application={Uri.EscapeDataString(Slug ?? string.Empty)}");
     private void OpenError(Guid id) => Navigation.NavigateTo($"/errors?application={Uri.EscapeDataString(Slug ?? string.Empty)}&error={id}");
 
+    private void OpenAdd()
+    {
+        formName = ""; formSlug = ""; formDescription = ""; modalError = ""; showAdd = true;
+    }
+    private void CloseAdd() { showAdd = false; }
+
+    private async Task SubmitAdd()
+    {
+        modalError = "";
+        if (string.IsNullOrWhiteSpace(formName) || string.IsNullOrWhiteSpace(formSlug))
+        { modalError = "Name and Slug are required."; return; }
+        submitting = true;
+        try
+        {
+            await Api.CreateApplicationAsync(formName, formSlug, formDescription);
+            showAdd = false;
+            successMessage = $"Application '{formSlug.Trim().ToLowerInvariant()}' created.";
+            await State.LoadApplicationsAsync();
+            await LoadAsync();
+        }
+        catch (Exception ex) { modalError = ex.Message; }
+        finally { submitting = false; }
+    }
+
+    private void OpenEdit(string slug, string name, string? desc, bool enabled)
+    {
+        // Try to fill description from State.Applications (has Description) if not supplied — overview summaries lack it
+        if (string.IsNullOrWhiteSpace(desc))
+            desc = State.Applications.FirstOrDefault(x => x.Slug == slug)?.Description;
+        formSlugEdit = slug; formName = name; formDescription = desc ?? ""; formEnabled = enabled; modalError = ""; showEdit = true;
+    }
+    private void CloseEdit() { showEdit = false; }
+
+    private async Task SubmitEdit()
+    {
+        modalError = "";
+        if (string.IsNullOrWhiteSpace(formName)) { modalError = "Name is required."; return; }
+        submitting = true;
+        try
+        {
+            await Api.UpdateApplicationAsync(formSlugEdit, formName, formDescription, formEnabled);
+            showEdit = false;
+            successMessage = $"Application '{formSlugEdit}' updated.";
+            await State.LoadApplicationsAsync();
+            await LoadAsync();
+        }
+        catch (Exception ex) { modalError = ex.Message; }
+        finally { submitting = false; }
+    }
+
+    private void OpenDelete(string slug, string name) { formSlugEdit = slug; formName = name; modalError = ""; showDelete = true; }
+    private void CloseDelete() { showDelete = false; }
+
+    private async Task SubmitDelete()
+    {
+        submitting = true; modalError = "";
+        try
+        {
+            await Api.DeleteApplicationAsync(formSlugEdit);
+            showDelete = false;
+            successMessage = $"Application '{formSlugEdit}' deleted.";
+            await State.LoadApplicationsAsync();
+            if (Slug is not null && string.Equals(Slug, formSlugEdit, StringComparison.OrdinalIgnoreCase))
+                Navigation.NavigateTo("/applications");
+            else
+                await LoadAsync();
+        }
+        catch (Exception ex) { modalError = ex.Message; }
+        finally { submitting = false; }
+    }
+
     private static string Format(DateTime value) => value.ToLocalTime().ToString("MMM d, yyyy HH:mm");
     private static string FormatShort(DateTime value) => value.ToLocalTime().ToString("MMM d");
 }
-

@@ -57,6 +57,74 @@ public static class ApiEndpoints
             return Results.Created($"/api/v1/applications/{application.Id}", application);
         });
 
+        app.MapPut("/api/v1/applications/{slug}", async (
+            string slug,
+            UpdateApplicationRequest request,
+            IDbContextFactory<TelemetryDbContext> factory,
+            CancellationToken cancellationToken) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.Name))
+                return Results.BadRequest(new { error = "Name is required." });
+
+            var normalized = slug.Trim().ToLowerInvariant();
+            await using var db = await factory.CreateDbContextAsync(cancellationToken);
+            var appRow = await db.Applications.SingleOrDefaultAsync(x => x.Slug == normalized, cancellationToken);
+            if (appRow is null) return Results.NotFound(new { error = "Application not found." });
+
+            appRow.Name = request.Name.Trim();
+            if (appRow.Name.Length == 0 || appRow.Name.Length > 200)
+                return Results.BadRequest(new { error = "Name must be 1-200 characters." });
+            appRow.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
+            if (request.IsEnabled.HasValue) appRow.IsEnabled = request.IsEnabled.Value;
+
+            await db.SaveChangesAsync(cancellationToken);
+            return Results.Ok(appRow);
+        });
+
+        app.MapDelete("/api/v1/applications/{slug}", async (
+            string slug,
+            IDbContextFactory<TelemetryDbContext> factory,
+            CancellationToken cancellationToken) =>
+        {
+            var normalized = slug.Trim().ToLowerInvariant();
+            await using var db = await factory.CreateDbContextAsync(cancellationToken);
+            var appRow = await db.Applications.SingleOrDefaultAsync(x => x.Slug == normalized, cancellationToken);
+            if (appRow is null) return Results.NotFound(new { error = "Application not found." });
+
+            // Manual cascade: installations, events, error groups/occurrences, daily stats
+            var appId = appRow.Id;
+            if (db.Database.IsRelational())
+            {
+                await db.ErrorOccurrences.Where(x => x.ApplicationId == appId).ExecuteDeleteAsync(cancellationToken);
+                await db.ErrorGroups.Where(x => x.ApplicationId == appId).ExecuteDeleteAsync(cancellationToken);
+                await db.TelemetryEvents.Where(x => x.ApplicationId == appId).ExecuteDeleteAsync(cancellationToken);
+                await db.Installations.Where(x => x.ApplicationId == appId).ExecuteDeleteAsync(cancellationToken);
+                await db.DailyEventStats.Where(x => x.ApplicationId == appId).ExecuteDeleteAsync(cancellationToken);
+                await db.DailyApplicationStats.Where(x => x.ApplicationId == appId).ExecuteDeleteAsync(cancellationToken);
+                await db.Applications.Where(x => x.Id == appId).ExecuteDeleteAsync(cancellationToken);
+            }
+            else
+            {
+                // InMemory provider fallback
+                var occ = await db.ErrorOccurrences.Where(x => x.ApplicationId == appId).ToListAsync(cancellationToken);
+                db.ErrorOccurrences.RemoveRange(occ);
+                var groups = await db.ErrorGroups.Where(x => x.ApplicationId == appId).ToListAsync(cancellationToken);
+                db.ErrorGroups.RemoveRange(groups);
+                var evts = await db.TelemetryEvents.Where(x => x.ApplicationId == appId).ToListAsync(cancellationToken);
+                db.TelemetryEvents.RemoveRange(evts);
+                var insts = await db.Installations.Where(x => x.ApplicationId == appId).ToListAsync(cancellationToken);
+                db.Installations.RemoveRange(insts);
+                var des = await db.DailyEventStats.Where(x => x.ApplicationId == appId).ToListAsync(cancellationToken);
+                db.DailyEventStats.RemoveRange(des);
+                var das = await db.DailyApplicationStats.Where(x => x.ApplicationId == appId).ToListAsync(cancellationToken);
+                db.DailyApplicationStats.RemoveRange(das);
+                db.Applications.Remove(appRow);
+                await db.SaveChangesAsync(cancellationToken);
+            }
+
+            return Results.NoContent();
+        });
+
         app.MapPost("/api/v1/telemetry/events", async (
             TelemetryBatchRequest request,
             HttpContext httpContext,

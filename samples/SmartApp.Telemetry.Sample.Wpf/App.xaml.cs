@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using SmartApp.Telemetry.Client;
 
@@ -12,7 +13,7 @@ public partial class App : Application
 
     public App()
     {
-        Endpoint = Environment.GetEnvironmentVariable("TELEMETRY_ENDPOINT") ?? "http://localhost:5000";
+        Endpoint = Debugger.IsAttached? "http://localhost:5000": "https://telemetry.smartappdz.org/";
         ApplicationName = Environment.GetEnvironmentVariable("TELEMETRY_APP") ?? "sample-wpf";
 
         Telemetry = TelemetryFactory.Create(options =>

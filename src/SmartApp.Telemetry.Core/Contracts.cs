@@ -4,6 +4,8 @@ namespace SmartApp.Telemetry.Core;
 
 public sealed record CreateApplicationRequest(string Name, string Slug, string? Description);
 
+public sealed record UpdateApplicationRequest(string Name, string? Description, bool? IsEnabled);
+
 public sealed record TelemetryContext(
     string? AppVersion,
     string? OperatingSystem,
