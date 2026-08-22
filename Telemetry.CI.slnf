@@ -1,0 +1,13 @@
+{
+  "solution": {
+    "path": "Telemetry.sln",
+    "projects": [
+      "clients/SmartApp.Telemetry.Client/SmartApp.Telemetry.Client.csproj",
+      "src/SmartApp.Telemetry.Core/SmartApp.Telemetry.Core.csproj",
+      "src/SmartApp.Telemetry.Infrastructure/SmartApp.Telemetry.Infrastructure.csproj",
+      "src/SmartApp.Telemetry.Web/SmartApp.Telemetry.Web.csproj",
+      "tests/SmartApp.Telemetry.Client.Tests/SmartApp.Telemetry.Client.Tests.csproj",
+      "tests/SmartApp.Telemetry.Web.Tests/SmartApp.Telemetry.Web.Tests.csproj"
+    ]
+  }
+}

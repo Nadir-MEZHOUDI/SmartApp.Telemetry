@@ -1,25 +1,26 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <AssemblyName>SmartApp.Telemetry.Client</AssemblyName>
-    <RootNamespace>SmartApp.Telemetry.Client</RootNamespace>
-    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-    <PackageId>SmartApp.Telemetry.Client</PackageId>
-    <Authors>Nadir MEZHOUDI</Authors>
-    <Description>Reusable, failure-tolerant telemetry client for .NET desktop and server applications (WPF, WinForms, ASP.NET Core). Non-blocking, fire-and-forget, with batching and offline persistence.</Description>
-    <PackageTags>telemetry;analytics;dotnet;wpf;winforms;desktop;crash-reporting</PackageTags>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryType>git</RepositoryType>
-    <RepositoryUrl>https://github.com/Nadir-MEZHOUDI/SmartApp.Telemetry</RepositoryUrl>
-    <PackageProjectUrl>https://github.com/Nadir-MEZHOUDI/SmartApp.Telemetry</PackageProjectUrl>
-  </PropertyGroup>
-  <ItemGroup>
-    <None Include="README.md" Pack="true" PackagePath="\" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.11" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.11" />
-    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.11" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
-    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.11" />
-  </ItemGroup>
+    <PropertyGroup>
+        <AssemblyName>SmartApp.Telemetry.Client</AssemblyName>
+        <RootNamespace>SmartApp.Telemetry.Client</RootNamespace>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <PackageOutputPath>D:\Programming\LocalNuget</PackageOutputPath>
+        <PackageId>SmartApp.Telemetry.Client</PackageId>
+        <Authors>Nadir MEZHOUDI</Authors>
+        <Description>Reusable, failure-tolerant telemetry client for .NET desktop and server applications (WPF, WinForms, ASP.NET Core). Non-blocking, fire-and-forget, with batching and offline persistence.</Description>
+        <PackageTags>telemetry;analytics;dotnet;wpf;winforms;desktop;crash-reporting</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <RepositoryType>git</RepositoryType>
+        <RepositoryUrl>https://github.com/Nadir-MEZHOUDI/SmartApp.Telemetry</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/Nadir-MEZHOUDI/SmartApp.Telemetry</PackageProjectUrl>
+    </PropertyGroup>
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.11" />
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.11" />
+        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.11" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
+        <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.11" />
+    </ItemGroup>
 </Project>

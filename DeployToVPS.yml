@@ -8,6 +8,7 @@ pool:
 
 variables:
   buildConfiguration: 'Release'
+  validationSolution: 'Telemetry.CI.slnf'
   packageOutput: '$(Build.ArtifactStagingDirectory)/nuget'
   vpsComposeFile: 'docker-compose.vps.yml'
   vpsRoot: '/opt/smartapp-telemetry'
@@ -23,23 +24,23 @@ stages:
     - checkout: self
 
     - task: DotNetCoreCLI@2
-      displayName: Restore solution
+      displayName: Restore deployable projects
       inputs:
         command: restore
-        projects: Telemetry.sln
+        projects: '$(validationSolution)'
 
     - task: DotNetCoreCLI@2
-      displayName: Build solution
+      displayName: Build deployable projects
       inputs:
         command: build
-        projects: Telemetry.sln
+        projects: '$(validationSolution)'
         arguments: '--configuration $(buildConfiguration) --no-restore -p:GeneratePackageOnBuild=false'
 
     - task: DotNetCoreCLI@2
-      displayName: Test solution
+      displayName: Test deployable projects
       inputs:
         command: test
-        projects: Telemetry.sln
+        projects: '$(validationSolution)'
         arguments: '--configuration $(buildConfiguration) --no-build --no-restore --collect:"XPlat Code Coverage" --results-directory $(Agent.TempDirectory)/coverage'
 
     - script: dotnet tool install --global dotnet-ef
