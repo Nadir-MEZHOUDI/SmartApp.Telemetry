@@ -2,7 +2,9 @@ trigger:
 - main
 
 pool:
-  vmImage: ubuntu-latest
+  # NuGetCommand@2 uses NuGet.exe for external API-key authentication.
+  # Keep this on an image supported by that task; ubuntu-latest may move to 24.04.
+  vmImage: ubuntu-22.04
 
 variables:
   clientProject: 'clients/SmartApp.Telemetry.Client/SmartApp.Telemetry.Client.csproj'
@@ -43,14 +45,13 @@ steps:
     allowPackageConflicts: true
     publishPackageMetadata: false
 
-- task: DotNetCoreCLI@2
+- task: NuGetCommand@2
   displayName: push to nuget.org
   inputs:
     command: push
     packagesToPush: '$(Build.ArtifactStagingDirectory)/*.nupkg'
     nuGetFeedType: external
     publishFeedCredentials: '$(nugetServiceConnection)'
-    allowPackageConflicts: true
 
 - task: PublishBuildArtifacts@1
   displayName: publish NuGet artifact
